@@ -1,16 +1,16 @@
 {
-  "name": "ada-v2",
+  "name": "orion",
   "version": "1.0.0",
-  "description": "A.D.A V2 - AI Assistant",
+  "description": "ORION - Omniscient Reasoning and Intelligent Operations Node",
   "main": "electron/main.js",
   "scripts": {
     "dev": "concurrently -k \"vite\" \"wait-on tcp:5173 && npx electron .\"",
     "build": "vite build",
     "start": "npx electron ."
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "keywords": ["ai", "assistant", "electron", "gemini", "voice"],
+  "author": "Felipe Alves <108808027+FalvesDev@users.noreply.github.com>",
+  "license": "MIT",
   "dependencies": {
     "@mediapipe/tasks-vision": "^0.10.22-rc.20250304",
     "@react-three/drei": "^9.99.0",
@@ -30,7 +30,7 @@
     "autoprefixer": "^10.4.17",
     "concurrently": "^8.2.2",
     "cross-env": "^7.0.3",
-    "electron": "^28.2.0",
+    "electron": "^28.3.3",
     "postcss": "^8.4.35",
     "tailwindcss": "^3.4.1",
     "vite": "^5.1.0",
