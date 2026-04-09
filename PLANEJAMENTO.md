@@ -196,7 +196,21 @@ Arrastar arquivos (STL, imagens, código, PDF) para o ORION analisar ou usar com
 
 ---
 
-### 3.6 — Export CAD para Múltiplos Formatos
+### 3.6 — Abrir Chrome / URLs na Tela do Usuário
+**Arquivos:** `backend/tools.py`, `backend/ada.py`
+**Complexidade:** Baixa | **Valor:** Alto
+
+Adicionar tool `open_browser(url)` que abre o Chrome ou browser padrão do usuário com a URL solicitada — com todos os logins e favoritos pessoais. Diferente do web_agent (que usa Playwright para automação), esta tool simplesmente abre o browser na tela via `webbrowser.open(url)` ou `subprocess.Popen(['start', 'chrome', url])`.
+
+**Exemplos de uso:**
+- "ORION, abre o Google pra mim"
+- "Abre o YouTube"
+- "Vai no meu Gmail"
+- "Pesquisa isso no Chrome"
+
+---
+
+### 3.7 — Export CAD para Múltiplos Formatos
 **Arquivos:** `src/components/CadWindow.jsx`, `backend/cad_agent.py`
 **Complexidade:** Baixa | **Valor:** Alto
 
@@ -280,7 +294,23 @@ Criar issues, commits, PRs, ler código. Combinado com execução Python: agente
 
 ---
 
-### 5.5 — Câmeras IP / RTSP
+### 5.5 — Lâmpada Elgin (Tuya Protocol)
+**Arquivos:** Novo `backend/elgin_agent.py` ou integração via `tinytuya`, `backend/tools.py`, `backend/ada.py`
+**Complexidade:** Média | **Valor:** Alto
+
+Integrar lâmpadas Elgin Smart (protocolo Tuya, mesmo chip usado pela maioria das smart bulbs brasileiras) ao ORION. Permitir controle por voz: ligar/desligar, mudar cor, ajustar brilho.
+
+**Exemplos de uso:**
+- "ORION, apaga a luz do quarto"
+- "Coloca a luz azul"
+- "Diminui o brilho para 30%"
+
+**Dependência:** `tinytuya` — `pip install tinytuya`
+**Configuração necessária:** Device ID, Local Key e IP da lâmpada (obtidos via Tuya IoT Platform ou scan de rede)
+
+---
+
+### 5.6 — Câmeras IP / RTSP
 **Arquivos:** `backend/ada.py`, `src/components/SettingsWindow.jsx`
 **Complexidade:** Média | **Valor:** Médio
 
@@ -306,7 +336,7 @@ Criar um instalador completo que funcione em qualquer PC Windows com um duplo cl
 10. Exibe "ORION instalado com sucesso!"
 ```
 
-### Alternativa — Electron Forge / Electron Builder
+### Opção B — Electron Forge / Electron Builder
 Empacotar tudo (Python via PyInstaller + Electron) em um `.exe` instalável. Usuário final não precisa instalar nada — só rodar o `.exe`.
 
 **Arquivos:** `package.json` (electron-builder config), novo `build/installer.nsh`, `pyinstaller.spec`
@@ -327,7 +357,8 @@ Empacotar tudo (Python via PyInstaller + Electron) em um `.exe` instalável. Usu
 | 8 | Toast notifications | 2 | Baixa | 🟠 Alto |
 | 9 | Markdown no chat | 2 | Baixa | 🟠 Alto |
 | 10 | Status bar com indicadores | 2 | Baixa | 🟠 Alto |
-| 11 | Export CAD STEP/GLTF | 3 | Baixa | 🟠 Alto |
+| 11 | Abrir Chrome/URLs na tela | 3 | Baixa | 🔴 Crítico |
+| 12 | Export CAD STEP/GLTF | 3 | Baixa | 🟠 Alto |
 | 12 | Screen awareness | 4 | Média | 🟠 Alto |
 | 13 | VAD neural (Silero) | 4 | Média | 🟠 Alto |
 | 14 | Painel de projetos | 3 | Média | 🟠 Alto |
