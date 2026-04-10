@@ -70,8 +70,20 @@ function startPythonBackend() {
     const scriptPath = path.join(__dirname, '../backend/server.py');
     console.log(`Starting Python backend: ${scriptPath}`);
 
-    // Use the conda ada_v2 environment Python
-    const pythonExe = 'C:\\Users\\pipef\\miniconda3\\envs\\ada_v2\\python.exe';
+    // Detect Python: prefer conda env ada_v2, fallback to system python
+    const userProfile = process.env.USERPROFILE || process.env.HOME || '';
+    const pythonCandidates = [
+        path.join(userProfile, 'miniconda3', 'envs', 'ada_v2', 'python.exe'),
+        path.join(userProfile, 'anaconda3', 'envs', 'ada_v2', 'python.exe'),
+        path.join(userProfile, 'AppData', 'Local', 'miniconda3', 'envs', 'ada_v2', 'python.exe'),
+        'python',
+        'python3',
+    ];
+    const fs = require('fs');
+    const pythonExe = pythonCandidates.find(p => {
+        try { return p === 'python' || p === 'python3' || fs.existsSync(p); } catch { return false; }
+    }) || 'python';
+    console.log(`Using Python: ${pythonExe}`);
     pythonProcess = spawn(pythonExe, [scriptPath], {
         cwd: path.join(__dirname, '../backend'),
     });
