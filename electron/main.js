@@ -1,12 +1,15 @@
-const { app, BrowserWindow, ipcMain } = require('electron');
+const electron = require('electron');
+const { app, BrowserWindow, ipcMain } = electron;
 const path = require('path');
 const { spawn } = require('child_process');
 
 // Use ANGLE D3D11 backend - more stable on Windows while keeping WebGL working
 // This fixes "GPU state invalid after WaitForGetOffsetInRange" error
-app.commandLine.appendSwitch('use-angle', 'd3d11');
-app.commandLine.appendSwitch('enable-features', 'Vulkan');
-app.commandLine.appendSwitch('ignore-gpu-blocklist');
+if (app && app.commandLine) {
+  app.commandLine.appendSwitch('use-angle', 'd3d11');
+  app.commandLine.appendSwitch('enable-features', 'Vulkan');
+  app.commandLine.appendSwitch('ignore-gpu-blocklist');
+}
 
 let mainWindow;
 let pythonProcess;
@@ -67,8 +70,9 @@ function startPythonBackend() {
     const scriptPath = path.join(__dirname, '../backend/server.py');
     console.log(`Starting Python backend: ${scriptPath}`);
 
-    // Assuming 'python' is in PATH. In prod, this would be the executable.
-    pythonProcess = spawn('python', [scriptPath], {
+    // Use the conda ada_v2 environment Python
+    const pythonExe = 'C:\\Users\\pipef\\miniconda3\\envs\\ada_v2\\python.exe';
+    pythonProcess = spawn(pythonExe, [scriptPath], {
         cwd: path.join(__dirname, '../backend'),
     });
 

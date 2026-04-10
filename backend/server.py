@@ -122,16 +122,20 @@ async def startup_event():
         print(f"[SERVER DEBUG] Error checking loop: {e}")
 
     print("[SERVER] Startup: Initializing Kasa Agent...")
-    await kasa_agent.initialize()
+    try:
+        await asyncio.wait_for(kasa_agent.initialize(), timeout=8.0)
+        print("[SERVER] Kasa Agent initialized.")
+    except asyncio.TimeoutError:
+        print("[SERVER] Kasa Agent timed out (devices unreachable). Continuing...")
 
 @app.get("/status")
 async def status():
-    return {"status": "running", "service": "A.D.A Backend"}
+    return {"status": "running", "service": "ORION Backend"}
 
 @sio.event
 async def connect(sid, environ):
     print(f"Client connected: {sid}")
-    await sio.emit('status', {'msg': 'Connected to A.D.A Backend'}, room=sid)
+    await sio.emit('status', {'msg': 'Connected to ORION Backend'}, room=sid)
 
     global authenticator
     
@@ -203,7 +207,7 @@ async def start_audio(sid, data=None):
              loop_task = None
         else:
              print("Audio loop already running. Re-connecting client to session.")
-             await sio.emit('status', {'msg': 'A.D.A Already Running'})
+             await sio.emit('status', {'msg': 'ORION Already Running'})
              return
 
 
@@ -313,8 +317,8 @@ async def start_audio(sid, data=None):
         
         loop_task.add_done_callback(handle_loop_exit)
         
-        print("Emitting 'A.D.A Started'")
-        await sio.emit('status', {'msg': 'A.D.A Started'})
+        print("Emitting 'ORION Started'")
+        await sio.emit('status', {'msg': 'ORION Started'})
 
         # Load saved printers
         saved_printers = SETTINGS.get("printers", [])
@@ -379,7 +383,7 @@ async def stop_audio(sid):
         audio_loop.stop() 
         print("Stopping Audio Loop")
         audio_loop = None
-        await sio.emit('status', {'msg': 'A.D.A Stopped'})
+        await sio.emit('status', {'msg': 'ORION Stopped'})
 
 @sio.event
 async def pause_audio(sid):
@@ -717,7 +721,7 @@ async def discover_printers(sid):
             return
         else:
             await sio.emit('printer_list', [])
-            await sio.emit('status', {'msg': "Connect to A.D.A to enable printer discovery"})
+            await sio.emit('status', {'msg': "Connect to ORION to enable printer discovery"})
             return
         
     try:

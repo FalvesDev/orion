@@ -35,3 +35,13 @@ out/
 # OS
 .DS_Store
 Thumbs.db
+
+# Local scripts (paths hardcoded para esta maquina)
+rodar_ada.bat
+
+# Scripts com credenciais / dados de desenvolvimento local
+get_elgin_key.py
+elgin_backup.ab
+
+# Settings raiz (duplicata local)
+settings.json
