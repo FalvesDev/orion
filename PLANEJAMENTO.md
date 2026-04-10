@@ -23,7 +23,7 @@ O ORION (Omniscient Reasoning and Intelligent Operations Node) é um assistente 
 1. **`save_memory` não grava dados** — loop incompleto sem `f.write()`
 2. **Modelo CAD com nome inválido** — `gemini-3-pro-preview` não existe
 3. **`contextIsolation: false`** no Electron — risco de segurança grave
-4. **Caminho Python hardcoded** — `C:\Users\pipef\...` impede distribuição
+4. **Caminho Python hardcoded** — caminho fixo no `electron/main.js` impede distribuição ✅ *Corrigido — detecção dinâmica via USERPROFILE*
 5. **`audio_loop` singleton global** — quebra em reconexão/multi-cliente
 6. **Lógica de permissões confusa** — bloco duplicado de "tool denied"
 7. **Serialização Kasa duplicada** — mesmo código em 3 arquivos
@@ -81,8 +81,8 @@ Detectar Python dinamicamente via PATH ou lista de candidatos conhecidos.
 
 ```js
 const pythonCandidates = [
+    path.join(process.env.USERPROFILE || '', 'miniconda3', 'envs', 'ada_v2', 'python.exe'),
     'python', 'python3',
-    path.join(process.env.USERPROFILE || '', 'miniconda3/envs/ada_v2/python.exe'),
 ];
 ```
 
