@@ -1,437 +1,242 @@
-# A.D.A V2 - Advanced Design Assistant
+# ORION — Omniscient Reasoning and Intelligent Operations Node
 
-![Python](https://img.shields.io/badge/Python-3.10%20%7C%203.11-blue?logo=python)
-![React](https://img.shields.io/badge/React-18.2-61DAFB?logo=react)
-![Electron](https://img.shields.io/badge/Electron-28-47848F?logo=electron)
-![Gemini](https://img.shields.io/badge/Google%20Gemini-Native%20Audio-4285F4?logo=google)
-![License](https://img.shields.io/badge/License-MIT-green)
+<p align="center">
+  <img src="https://img.shields.io/badge/Python-3.11-blue?logo=python" alt="Python">
+  <img src="https://img.shields.io/badge/React-18.2-61DAFB?logo=react" alt="React">
+  <img src="https://img.shields.io/badge/Electron-28-47848F?logo=electron" alt="Electron">
+  <img src="https://img.shields.io/badge/Google%20Gemini-2.5%20Native%20Audio-4285F4?logo=google" alt="Gemini">
+  <img src="https://img.shields.io/badge/License-MIT-green" alt="License">
+</p>
 
-> **A.D.A** = **A**dvanced **D**esign **A**ssistant
-
-ADA V2 is a sophisticated AI assistant designed for multimodal interaction. It combines Google's Gemini 2.5 Native Audio with computer vision, gesture control, and 3D CAD generation in a Electron desktop application.
-
----
-
-## 🌟 Capabilities at a Glance
-
-| Feature | Description | Technology |
-|---------|-------------|------------|
-| **🗣️ Low-Latency Voice** | Real-time conversation with interrupt handling | Gemini 2.5 Native Audio |
-| **🧊 Parametric CAD** | Editable 3D model generation from voice prompts | `build123d` → STL |
-| **🖨️ 3D Printing** | Slicing and wireless print job submission | OrcaSlicer + Moonraker/OctoPrint |
-| **🖐️ Minority Report UI** | Gesture-controlled window manipulation | MediaPipe Hand Tracking |
-| **👁️ Face Authentication** | Secure local biometric login | MediaPipe Face Landmarker |
-| **🌐 Web Agent** | Autonomous browser automation | Playwright + Chromium |
-| **🏠 Smart Home** | Voice control for TP-Link Kasa devices | `python-kasa` |
-| **📁 Project Memory** | Persistent context across sessions | File-based JSON storage |
-
-### 🖐️ Gesture Control Details
-
-ADA's "Minority Report" interface uses your webcam to detect hand gestures:
-
-| Gesture | Action |
-|---------|--------|
-| 🤏 **Pinch** | Confirm action / click |
-| ✋ **Open Palm** | Release the window |
-| ✊ **Close Fist** | "Select" and grab a UI window to drag it |
-
-> **Tip**: Enable the video feed window to see the hand tracking overlay.
+<p align="center">
+  <strong>Um assistente de IA avançado para desktop — rápido, composto, e inegavelmente vivo.</strong><br>
+  <em>Desenvolvido por <a href="https://github.com/FalvesDev">Felipe Alves</a></em>
+</p>
 
 ---
 
-## 🏗️ Architecture Overview
+ORION é um assistente pessoal de IA de alto desempenho rodando localmente como aplicativo desktop. Combina voz em tempo real via Google Gemini 2.5, geração de modelos CAD 3D, automação web, controle de dispositivos inteligentes e rastreamento de gestos — tudo em uma interface estilo sci-fi.
 
-```mermaid
-graph TB
-    subgraph Frontend ["Frontend (Electron + React)"]
-        UI[React UI]
-        THREE[Three.js 3D Viewer]
-        GESTURE[MediaPipe Gestures]
-        SOCKET_C[Socket.IO Client]
-    end
-    
-    subgraph Backend ["Backend (Python 3.11 + FastAPI)"]
-        SERVER[server.py<br/>Socket.IO Server]
-        ADA[ada.py<br/>Gemini Live API]
-        WEB[web_agent.py<br/>Playwright Browser]
-        CAD[cad_agent.py<br/>CAD + build123d]
-        PRINTER[printer_agent.py<br/>3D Printing + OrcaSlicer]
-        KASA[kasa_agent.py<br/>Smart Home]
-        AUTH[authenticator.py<br/>MediaPipe Face Auth]
-        PM[project_manager.py<br/>Project Context]
-    end
-    
-    UI --> SOCKET_C
-    SOCKET_C <--> SERVER
-    SERVER --> ADA
-    ADA --> WEB
-    ADA --> CAD
-    ADA --> KASA
-    SERVER --> AUTH
-    SERVER --> PM
-    SERVER --> PRINTER
-    CAD -->|STL file| THREE
-    CAD -->|STL file| PRINTER
+> **Origem:** ORION é uma evolução do projeto A.D.A, criado originalmente por [Nazir Louis](https://github.com/nazirlouis/ada_v2). Esta versão foi completamente reformulada com nova personalidade, novas funcionalidades e arquitetura aprimorada.
+
+---
+
+## Capacidades
+
+| Funcionalidade | Descrição | Tecnologia |
+|---|---|---|
+| **Voz em Tempo Real** | Conversa bidirecional com baixa latência e interrupt handling | Gemini 2.5 Native Audio |
+| **CAD 3D Paramétrico** | Gera modelos 3D editáveis por comando de voz | `build123d` → STL |
+| **Impressão 3D** | Fatiamento e envio sem fio para impressoras | OrcaSlicer + Moonraker/OctoPrint |
+| **Interface por Gestos** | Controle de janelas com rastreamento de mãos | MediaPipe Hand Tracking |
+| **Autenticação Facial** | Login biométrico local e seguro | MediaPipe Face Landmarker |
+| **Agente Web** | Automação autônoma do navegador | Playwright + Chromium |
+| **Casa Inteligente** | Controle por voz de dispositivos Kasa | `python-kasa` |
+| **Memória de Projetos** | Contexto persistente entre sessões | JSON file-based storage |
+
+---
+
+## Arquitetura
+
+```
+┌─────────────────────────────────────────┐
+│          Frontend (Electron + React)     │
+│  React UI · Three.js · MediaPipe        │
+│  Socket.IO Client                       │
+└──────────────┬──────────────────────────┘
+               │ WebSocket
+┌──────────────▼──────────────────────────┐
+│          Backend (Python 3.11)           │
+│  server.py  →  FastAPI + Socket.IO       │
+│  ada.py     →  Gemini Live API           │
+│  web_agent  →  Playwright Browser        │
+│  cad_agent  →  build123d CAD             │
+│  kasa_agent →  Smart Home                │
+│  printer    →  3D Printing               │
+└─────────────────────────────────────────┘
 ```
 
 ---
 
-## ⚡ TL;DR Quick Start (Experienced Developers)
+## Instalação
 
-<details>
-<summary>Click to expand quick setup commands</summary>
+### Pré-requisitos
 
+- **Python 3.11** via [Miniconda](https://docs.conda.io/en/latest/miniconda.html)
+- **Node.js 18+** via [nodejs.org](https://nodejs.org/)
+- **Git** via [git-scm.com](https://git-scm.com/)
+- Chave de API do **Google Gemini** via [aistudio.google.com](https://aistudio.google.com/app/apikey)
+
+### Passo a passo
+
+**1. Clone o repositório**
 ```bash
-# 1. Clone and enter
-git clone https://github.com/nazirlouis/ada_v2.git && cd ada_v2
-
-# 2. Create Python environment (Python 3.11)
-conda create -n ada_v2 python=3.11 -y && conda activate ada_v2
-brew install portaudio  # macOS only (for PyAudio)
-pip install -r requirements.txt
-playwright install chromium
-
-# 3. Setup frontend
-npm install
-
-# 4. Create .env file
-echo "GEMINI_API_KEY=your_key_here" > .env
-
-# 5. Run!
-conda activate ada_v2 && npm run dev
+git clone https://github.com/FalvesDev/orion.git
+cd orion
 ```
 
-</details>
-
----
-
-## 🛠️ Installation Requirements
-
-### 🆕 Absolute Beginner Setup (Start Here)
-If you have never coded before, follow these steps first!
-
-**Step 1: Install Visual Studio Code (The Editor)**
-- Download and install [VS Code](https://code.visualstudio.com/). This is where you will write code and run commands.
-
-**Step 2: Install Anaconda (The Manager)**
-- Download [Miniconda](https://docs.conda.io/en/latest/miniconda.html) (a lightweight version of Anaconda).
-- This tool allows us to create isolated "playgrounds" (environments) for our code so different projects don't break each other.
-- **Windows Users**: During install, check "Add Anaconda to my PATH environment variable" (even if it says not recommended, it makes things easier for beginners).
-
-**Step 3: Install Git (The Downloader)**
-- **Windows**: Download [Git for Windows](https://git-scm.com/download/win).
-- **Mac**: Open the "Terminal" app (Cmd+Space, type Terminal) and type `git`. If not installed, it will ask to install developer tools—say yes.
-
-**Step 4: Get the Code**
-1. Open your terminal (or Command Prompt on Windows).
-2. Type this command and hit Enter:
-   ```bash
-   git clone https://github.com/nazirlouis/ada_v2.git
-   ```
-3. This creates a folder named `ada_v2`.
-
-**Step 5: Open in VS Code**
-1. Open VS Code.
-2. Go to **File > Open Folder**.
-3. Select the `ada_v2` folder you just downloaded.
-4. Open the internal terminal: Press `Ctrl + ~` (tilde) or go to **Terminal > New Terminal**.
-
----
-
-### ⚠️ Technical Prerequisites
-Once you have the basics above, continue here.
-
-### 1. System Dependencies
-
-**MacOS:**
+**2. Crie o ambiente Python**
 ```bash
-# Audio Input/Output support (PyAudio)
-brew install portaudio
-```
-
-**Windows:**
-- No additional system dependencies required!
-
-### 2. Python Environment
-Create a single Python 3.11 environment:
-
-```bash
-conda create -n ada_v2 python=3.11
+conda create -n ada_v2 python=3.11 -y
 conda activate ada_v2
-
-# Install all dependencies
 pip install -r requirements.txt
-
-# Install Playwright browsers
 playwright install chromium
 ```
 
-### 3. Frontend Setup
-Requires **Node.js 18+** and **npm**. Download from [nodejs.org](https://nodejs.org/) if not installed.
-
+**3. Instale as dependências do frontend**
 ```bash
-# Verify Node is installed
-node --version  # Should show v18.x or higher
-
-# Install frontend dependencies
 npm install
 ```
 
-### 4. 🔐 Face Authentication Setup
-To use the secure voice features, ADA needs to know what you look like.
+**4. Configure a API key**
 
-1. Take a clear photo of your face (or use an existing one).
-2. Rename the file to `reference.jpg`.
-3. Drag and drop this file into the `ada_v2/backend` folder.
-4. (Optional) You can toggle this feature on/off in `settings.json` by changing `"face_auth_enabled": true/false`.
+Crie um arquivo `.env` na raiz do projeto:
+```
+GEMINI_API_KEY=sua_chave_aqui
+```
+> Nunca commite o arquivo `.env`. Ele já está no `.gitignore`.
 
----
-
-## ⚙️ Configuration (`settings.json`)
-
-The system creates a `settings.json` file on first run. You can modify this to change behavior:
-
-| Key | Type | Description |
-| :--- | :--- | :--- |
-| `face_auth_enabled` | `bool` | If `true`, blocks all AI interaction until your face is recognized via the camera. |
-| `tool_permissions` | `obj` | Controls manual approval for specific tools. |
-| `tool_permissions.generate_cad` | `bool` | If `true`, requires you to click "Confirm" on the UI before generating CAD. |
-| `tool_permissions.run_web_agent` | `bool` | If `true`, requires confirmation before opening the browser agent. |
-| `tool_permissions.write_file` | `bool` | **Critical**: Requires confirmation before the AI writes code/files to disk. |
-
----
-
-### 5. 🖨️ 3D Printer Setup
-ADA V2 can slice STL files and send them directly to your 3D printer.
-
-**Supported Hardware:**
-- **Klipper/Moonraker** (Creality K1, Voron, etc.)
-- **OctoPrint** instances
-- **PrusaLink** (Experimental)
-
-**Step 1: Install Slicer**
-ADA uses **OrcaSlicer** (recommended) or PrusaSlicer to generate G-code.
-1. Download and install [OrcaSlicer](https://github.com/SoftFever/OrcaSlicer).
-2. Run it once to ensure profiles are created.
-3. ADA automatically detects the installation path.
-
-**Step 2: Connect Printer**
-1. Ensure your printer and computer are on the **same Wi-Fi network**.
-2. Open the **Printer Window** in ADA (Cube icon).
-3. ADA automatically scans for printers using mDNS.
-4. **Manual Connection**: If your printer isn't found, use the "Add Printer" button and enter the IP address (e.g., `192.168.1.50`).
-
----
-
-### 6. 🔑 Gemini API Key Setup
-ADA uses Google's Gemini API for voice and intelligence. You need a free API key.
-
-1. Go to [Google AI Studio](https://aistudio.google.com/app/apikey).
-2. Sign in with your Google account.
-3. Click **"Create API Key"** and copy the generated key.
-4. Create a file named `.env` in the `ada_v2` folder (same level as `README.md`).
-5. Add this line to the file:
-   ```
-   GEMINI_API_KEY=your_api_key_here
-   ```
-6. Replace `your_api_key_here` with the key you copied.
-
-> **Note**: Keep this key private! Never commit your `.env` file to Git.
-
----
-
-## 🚀 Running ADA V2
-
-You have two options to run the app. Ensure your `ada_v2` environment is active!
-
-### Option 1: The "Easy" Way (Single Terminal)
-The app is smart enough to start the backend for you.
-1. Open your terminal in the `ada_v2` folder.
-2. Activate your environment: `conda activate ada_v2`
-3. Run:
-   ```bash
-   npm run dev
-   ```
-4. The backend will start automatically in the background.
-
-### Option 2: The "Developer" Way (Two Terminals)
-Use this if you want to see the Python logs (recommended for debugging).
-
-**Terminal 1 (Backend):**
+**5. Execute**
 ```bash
 conda activate ada_v2
-python backend/server.py
-```
-
-**Terminal 2 (Frontend):**
-```bash
-# Environment doesn't matter here, but keep it simple
 npm run dev
 ```
 
 ---
 
-## ✅ First Flight Checklist (Things to Test)
+## Configuração (`settings.json`)
 
-1. **Voice Check**: Say "Hello Ada". She should respond.
-2. **Vision Check**: Look at the camera. If Face Auth is on, the lock screen should unlock.
-3. **CAD Check**: Open the CAD window and say "Create a cube". Watch the logs.
-4. **Web Check**: Open the Browser window and say "Go to Google".
-5. **Smart Home**: If you have Kasa devices, say "Turn on the lights".
+O arquivo `backend/settings.json` é criado automaticamente na primeira execução. Principais opções:
 
----
-
-## ▶️ Commands & Tools Reference
-
-### 🗣️ Voice Commands
-- "Switch project to [Name]"
-- "Create a new project called [Name]"
-- "Turn on the [Room] light"
-- "Make the light [Color]"
-- "Pause audio" / "Stop audio"
-
-### 🧊 3D CAD
-- **Prompt**: "Create a 3D model of a hex bolt."
-- **Iterate**: "Make the head thinner." (Requires previous context)
-- **Files**: Saves to `projects/[ProjectName]/output.stl`.
-
-### 🌐 Web Agent
-- **Prompt**: "Go to Amazon and find a USB-C cable under $10."
-- **Note**: The agent will auto-scroll, click, and type. Do not interfere with the browser window while it runs.
-
-### 🖨️ Printing & Slicing
-- **Auto-Discovery**: ADA automatically finds printers on your network.
-- **Slicing**: Click "Slice & Print" on any generated 3D model.
-- **Profiles**: ADA intelligently selects the correct OrcaSlicer profile based on your printer's name (e.g., "Creality K1").
+| Chave | Tipo | Descrição |
+|---|---|---|
+| `face_auth_enabled` | `bool` | Exige reconhecimento facial para desbloquear o assistente |
+| `tool_permissions.generate_cad` | `bool` | Requer confirmação antes de gerar modelos 3D |
+| `tool_permissions.run_web_agent` | `bool` | Requer confirmação antes de abrir o agente web |
+| `tool_permissions.write_file` | `bool` | Requer confirmação antes de escrever arquivos em disco |
+| `kasa_devices` | `list` | Lista de dispositivos Kasa com IP, nome e apelido |
 
 ---
 
-## ❓ Troubleshooting FAQ
+## Autenticação Facial (opcional)
 
-### Camera not working / Permission denied (Mac)
-**Symptoms**: Error about camera access, or video feed shows black.
-
-**Solution**:
-1. Go to **System Preferences > Privacy & Security > Camera**.
-2. Ensure your terminal app (e.g., Terminal, iTerm, VS Code) has camera access enabled.
-3. Restart the app after granting permission.
+1. Tire uma foto clara do seu rosto.
+2. Renomeie para `reference.jpg`.
+3. Coloque o arquivo em `backend/reference.jpg`.
+4. No `settings.json`, mude `face_auth_enabled` para `true`.
 
 ---
 
-### `GEMINI_API_KEY` not found / Authentication Error
-**Symptoms**: Backend crashes on startup with "API key not found".
+## Impressora 3D (opcional)
 
-**Solution**:
-1. Make sure your `.env` file is in the root `ada_v2` folder (not inside `backend/`).
-2. Verify the format is exactly: `GEMINI_API_KEY=your_key` (no quotes, no spaces).
-3. Restart the backend after editing the file.
+ORION suporta **Klipper/Moonraker**, **OctoPrint** e **PrusaLink**.
 
----
-
-### WebSocket connection errors (1011)
-**Symptoms**: `websockets.exceptions.ConnectionClosedError: 1011 (internal error)`.
-
-**Solution**:
-This is a server-side issue from the Gemini API. Simply reconnect by clicking the connect button or saying "Hello Ada" again. If it persists, check your internet connection or try again later.
+1. Instale o [OrcaSlicer](https://github.com/SoftFever/OrcaSlicer) e execute uma vez.
+2. Certifique-se que a impressora e o PC estão na mesma rede Wi-Fi.
+3. O ORION detecta impressoras automaticamente via mDNS.
+4. Para conexão manual, adicione o IP em **Settings → Printers**.
 
 ---
 
-## 📸 What It Looks Like
+## Gestos Suportados
 
-*Coming soon! Screenshots and demo videos will be added here.*
+| Gesto | Ação |
+|---|---|
+| Pinça | Confirmar / clicar |
+| Palma aberta | Soltar janela |
+| Punho fechado | Segurar e arrastar janela |
 
 ---
 
-## 📂 Project Structure
+## Estrutura do Projeto
 
 ```
-ada_v2/
-├── backend/                    # Python server & AI logic
-│   ├── ada.py                  # Gemini Live API integration
-│   ├── server.py               # FastAPI + Socket.IO server
-│   ├── cad_agent.py            # CAD generation orchestrator
-│   ├── printer_agent.py        # 3D printer discovery & slicing
-│   ├── web_agent.py            # Playwright browser automation
-│   ├── kasa_agent.py           # TP-Link smart home control
-│   ├── authenticator.py        # MediaPipe face auth logic
-│   ├── project_manager.py      # Project context management
-│   ├── tools.py                # Tool definitions for Gemini
-│   └── reference.jpg           # Your face photo (add this!)
-├── src/                        # React frontend
-│   ├── App.jsx                 # Main application component
-│   ├── components/             # UI components (11 files)
-│   └── index.css               # Global styles
-├── electron/                   # Electron main process
-│   └── main.js                 # Window & IPC setup
-├── projects/                   # User project data (auto-created)
-├── .env                        # API keys (create this!)
-├── requirements.txt            # Python dependencies
-├── package.json                # Node.js dependencies
-└── README.md                   # You are here!
+orion/
+├── backend/                    # Servidor Python e lógica de IA
+│   ├── ada.py                  # Integração com Gemini Live API
+│   ├── server.py               # FastAPI + Socket.IO
+│   ├── cad_agent.py            # Geração de modelos CAD
+│   ├── printer_agent.py        # Descoberta e fatiamento 3D
+│   ├── web_agent.py            # Automação com Playwright
+│   ├── kasa_agent.py           # Controle de casa inteligente
+│   ├── authenticator.py        # Autenticação facial
+│   ├── project_manager.py      # Gerenciamento de projetos
+│   └── tools.py                # Definição de ferramentas para o Gemini
+├── src/                        # Frontend React
+│   ├── App.jsx                 # Componente principal
+│   ├── components/             # Componentes de UI
+│   └── index.css               # Estilos globais
+├── electron/                   # Processo principal Electron
+│   └── main.js                 # Janelas e IPC
+├── .env                        # Chaves de API (crie este arquivo!)
+├── requirements.txt            # Dependências Python
+├── package.json                # Dependências Node.js
+├── PLANEJAMENTO.md             # Roadmap completo de desenvolvimento
+└── README.md                   # Este arquivo
 ```
 
 ---
 
-## ⚠️ Known Limitations
+## Roadmap
 
-| Limitation | Details |
-|------------|---------|
-| **macOS & Windows** | Tested on macOS 14+ and Windows 10/11. Linux is untested. |
-| **Camera Required** | Face auth and gesture control need a working webcam. |
-| **Gemini API Quota** | Free tier has rate limits; heavy CAD iteration may hit limits. |
-| **Network Dependency** | Requires internet for Gemini API (no offline mode). |
-| **Single User** | Face auth recognizes one person (the `reference.jpg`). |
+O desenvolvimento futuro do ORION está documentado em detalhes no [PLANEJAMENTO.md](PLANEJAMENTO.md). Resumo das fases:
 
----
-
-## 🤝 Contributing
-
-Contributions are welcome! Here's how:
-
-1. **Fork** the repository.
-2. **Create a branch**: `git checkout -b feature/amazing-feature`
-3. **Commit** your changes: `git commit -m 'Add amazing feature'`
-4. **Push** to the branch: `git push origin feature/amazing-feature`
-5. **Open a Pull Request** with a clear description.
-
-### Development Tips
-
-- Run the backend separately (`python backend/server.py`) to see Python logs.
-- Use `npm run dev` without Electron during frontend development (faster reload).
-- The `projects/` folder contains user data—don't commit it to Git.
+| Fase | Foco | Status |
+|---|---|---|
+| **Fase 1** | Estabilidade — bugs críticos, segurança Electron, instalador | Planejado |
+| **Fase 2** | UX — persistência de layout, toast notifications, markdown no chat | Planejado |
+| **Fase 3** | Novas features — push-to-talk, painel de projetos, abrir Chrome, execução de código | Planejado |
+| **Fase 4** | Inteligência — memória vetorial, VAD neural, screen awareness, modo agente autônomo | Planejado |
+| **Fase 5** | Integrações — Home Assistant, Google Calendar, Spotify, GitHub, lâmpadas Tuya | Planejado |
 
 ---
 
-## 🔒 Security Considerations
+## Solução de Problemas
 
-| Aspect | Implementation |
-|--------|----------------|
-| **API Keys** | Stored in `.env`, never committed to Git. |
-| **Face Data** | Processed locally, never uploaded. |
-| **Tool Confirmations** | Write/CAD/Web actions can require user approval. |
-| **No Cloud Storage** | All project data stays on your machine. |
+**`GEMINI_API_KEY` não encontrada**
+- Verifique se o `.env` está na raiz do projeto (não dentro de `backend/`).
+- Formato correto: `GEMINI_API_KEY=sua_chave` (sem aspas, sem espaços).
 
-> [!WARNING]
-> Never share your `.env` file or `reference.jpg`. These contain sensitive credentials and biometric data.
+**Erro de conexão WebSocket (1011)**
+- Problema temporário da API Gemini. Clique em reconectar ou aguarde alguns segundos.
 
----
+**Camera sem permissão (macOS)**
+- Vá em **Preferências do Sistema → Privacidade → Câmera** e autorize o terminal.
 
-## 🙏 Acknowledgments
-
-- **[Google Gemini](https://deepmind.google/technologies/gemini/)** — Native Audio API for real-time voice
-- **[build123d](https://github.com/gumyr/build123d)** — Modern parametric CAD library
-- **[MediaPipe](https://developers.google.com/mediapipe)** — Hand tracking, gesture recognition, and face authentication
-- **[Playwright](https://playwright.dev/)** — Reliable browser automation
+**App não abre / ERR_CONNECTION_REFUSED**
+- Certifique-se de usar `npm run dev` (não `npx electron .` diretamente), pois ele inicia o Vite e o Electron juntos.
 
 ---
 
-## 📄 License
+## Segurança
 
-This project is licensed under the **MIT License** — see the [LICENSE](LICENSE) file for details.
+| Aspecto | Implementação |
+|---|---|
+| Chaves de API | Armazenadas em `.env`, nunca commitadas |
+| Dados faciais | Processados localmente, nunca enviados |
+| Confirmação de ferramentas | Ações destrutivas requerem aprovação do usuário |
+| Sem armazenamento em nuvem | Todos os dados de projeto ficam no seu computador |
+
+---
+
+## Licença
+
+Este projeto está licenciado sob a **MIT License** — veja o arquivo [LICENSE](LICENSE) para detalhes.
+
+---
+
+## Créditos
+
+- **Felipe Alves ([@FalvesDev](https://github.com/FalvesDev))** — Criador e mantenedor do ORION
+- **Nazir Louis ([@nazirlouis](https://github.com/nazirlouis))** — Criador do projeto original A.D.A, base sobre a qual o ORION foi construído
+- **[Google Gemini](https://deepmind.google/technologies/gemini/)** — API de áudio nativo em tempo real
+- **[build123d](https://github.com/gumyr/build123d)** — Biblioteca CAD paramétrica moderna
+- **[MediaPipe](https://developers.google.com/mediapipe)** — Rastreamento de mãos, gestos e autenticação facial
+- **[Playwright](https://playwright.dev/)** — Automação de navegador confiável
 
 ---
 
 <p align="center">
-  <strong>Built with 🤖 by Nazir Louis</strong><br>
-  <em>Bridging AI, CAD, and Vision in a Single Interface</em>
+  <strong>ORION — Desenvolvido por <a href="https://github.com/FalvesDev">Felipe Alves</a></strong><br>
+  <em>Inteligência. Voz. Controle. Tudo em um.</em>
 </p>
