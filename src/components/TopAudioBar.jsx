@@ -54,6 +54,7 @@ const TopAudioBar = ({
         <StatusDot active={isOrionRunning} color="bg-cyan-400" label="ORION" />
         <StatusDot active={isCameraActive} color="bg-blue-400" label="Camera" />
         <StatusDot active={isPrinterConnected} color="bg-purple-400" label="Printer" />
+        <StatusDot active={false} color="bg-yellow-400" label="Gestures (coming soon)" />
       </div>
     </div>
   );
