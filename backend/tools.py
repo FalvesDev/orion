@@ -204,6 +204,25 @@ delete_file_tool = {
     }
 }
 
+copy_file_tool = {
+    "name": "copy_file",
+    "description": "Copies a file from one location to another. Only works on files, not directories.",
+    "parameters": {
+        "type": "OBJECT",
+        "properties": {
+            "source": {
+                "type": "STRING",
+                "description": "The source file path to copy from."
+            },
+            "destination": {
+                "type": "STRING",
+                "description": "The destination path to copy to (directory or full file path)."
+            }
+        },
+        "required": ["source", "destination"]
+    }
+}
+
 tools_list = [{"function_declarations": [
     generate_cad_prototype_tool,
     write_file_tool,
@@ -218,6 +237,7 @@ tools_list = [{"function_declarations": [
     take_screenshot_tool,
     move_file_tool,
     delete_file_tool,
+    copy_file_tool,
 ]}]
 
 
