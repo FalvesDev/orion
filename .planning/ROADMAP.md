@@ -28,8 +28,8 @@ This milestone transforms ORION from a capable voice assistant into a full PC co
   5. User can say "mute the volume" or "set volume to 50%" and system volume changes immediately
 **Plans**: 2 plans
 Plans:
-- [ ] 01-01-PLAN.md — Add copy_file tool (tools.py + ada.py + server.py)
-- [ ] 01-02-PLAN.md — Fix ~-path resolution bugs in _move_file and _delete_file
+- [x] 01-01-PLAN.md — Add copy_file tool (tools.py + ada.py + server.py)
+- [x] 01-02-PLAN.md — Fix ~-path resolution bugs in _move_file and _delete_file
 
 ### Phase 2: Security
 **Goal**: Electron renderer process no longer has direct Node.js access, and each WebSocket session owns its own audio loop with clean teardown
@@ -42,8 +42,8 @@ Plans:
   4. Disconnecting a WebSocket client fully cleans up its audio_loop (no resource leak)
 **Plans**: 2 plans
 Plans:
-- [ ] 01-01-PLAN.md — Add copy_file tool (tools.py + ada.py + server.py)
-- [ ] 01-02-PLAN.md — Fix ~-path resolution bugs in _move_file and _delete_file
+- [ ] 02-01-PLAN.md — Electron IPC migration: preload.js + contextIsolation + renderer migration
+- [ ] 02-02-PLAN.md — Backend per-session audio loop refactor (server.py)
 
 ### Phase 3: UX Polish
 **Goal**: The interface provides real-time feedback about system health, remembers panel layout between sessions, and supports hands-free push-to-talk from any window
@@ -56,8 +56,8 @@ Plans:
   4. Pressing Space (or the configured shortcut) activates push-to-talk even when ORION is not the focused window
 **Plans**: 2 plans
 Plans:
-- [ ] 01-01-PLAN.md — Add copy_file tool (tools.py + ada.py + server.py)
-- [ ] 01-02-PLAN.md — Fix ~-path resolution bugs in _move_file and _delete_file
+- [ ] 03-01-PLAN.md — Status bar indicators and live updates
+- [ ] 03-02-PLAN.md — Layout persistence and push-to-talk shortcut
 **UI hint**: yes
 
 ## Progress
@@ -66,6 +66,6 @@ Plans:
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. PC Control | 0/TBD | Not started | - |
-| 2. Security | 0/TBD | Not started | - |
-| 3. UX Polish | 0/TBD | Not started | - |
+| 1. PC Control | 2/2 | Complete | 2026-04-18 |
+| 2. Security | 0/2 | Ready | - |
+| 3. UX Polish | 0/2 | Not started | - |
