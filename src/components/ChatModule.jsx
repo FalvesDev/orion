@@ -1,4 +1,5 @@
 import React, { useEffect, useRef } from 'react';
+import ReactMarkdown from 'react-markdown';
 
 const ChatModule = ({
     messages,
@@ -44,10 +45,31 @@ const ChatModule = ({
                 className="flex flex-col gap-3 overflow-y-auto mb-4 scrollbar-hide mask-image-gradient relative z-10"
                 style={{ height: height ? `calc(${height}px - 70px)` : '15rem' }}
             >
-                {messages.slice(-5).map((msg, i) => (
+                {messages.map((msg, i) => (
                     <div key={i} className="text-sm border-l-2 border-cyan-800/50 pl-3 py-1">
                         <span className="text-cyan-600 font-mono text-xs opacity-70">[{msg.time}]</span> <span className="font-bold text-cyan-300 drop-shadow-sm">{msg.sender}</span>
-                        <div className="text-gray-300 mt-1 leading-relaxed">{msg.text}</div>
+                        <div className="text-gray-300 mt-1 leading-relaxed">
+                            {msg.sender === 'ORION' ? (
+                                <ReactMarkdown
+                                    components={{
+                                        p: ({ children }) => <p className="mb-1 last:mb-0">{children}</p>,
+                                        code: ({ inline, children }) =>
+                                            inline
+                                                ? <code className="bg-cyan-900/40 text-cyan-200 px-1 rounded font-mono text-xs">{children}</code>
+                                                : <pre className="bg-black/40 border border-cyan-800/30 rounded p-2 mt-1 overflow-x-auto text-xs"><code className="text-cyan-100 font-mono">{children}</code></pre>,
+                                        ul: ({ children }) => <ul className="list-disc list-inside space-y-0.5 mt-1">{children}</ul>,
+                                        ol: ({ children }) => <ol className="list-decimal list-inside space-y-0.5 mt-1">{children}</ol>,
+                                        li: ({ children }) => <li className="text-gray-300">{children}</li>,
+                                        strong: ({ children }) => <strong className="text-cyan-200 font-semibold">{children}</strong>,
+                                        em: ({ children }) => <em className="text-gray-400 italic">{children}</em>,
+                                    }}
+                                >
+                                    {msg.text}
+                                </ReactMarkdown>
+                            ) : (
+                                msg.text
+                            )}
+                        </div>
                     </div>
                 ))}
                 <div ref={messagesEndRef} />
