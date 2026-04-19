@@ -1230,6 +1230,16 @@ class AudioLoop:
                                     )
                                     function_responses.append(function_response)
 
+                                elif fc.name == "copy_file":
+                                    source = fc.args["source"]
+                                    destination = fc.args["destination"]
+                                    print(f"[ADA DEBUG] [TOOL] Tool Call: 'copy_file' {source} -> {destination}")
+                                    result_str = await asyncio.to_thread(self._copy_file, source, destination)
+                                    function_response = types.FunctionResponse(
+                                        id=fc.id, name=fc.name, response={"result": result_str}
+                                    )
+                                    function_responses.append(function_response)
+
                         if function_responses:
                             await self.session.send_tool_response(function_responses=function_responses)
                 
@@ -1453,24 +1463,38 @@ class AudioLoop:
 
     def _move_file(self, source: str, destination: str) -> str:
         try:
-            if not os.path.exists(source):
+            resolved = self._resolve_path(source)
+            if not resolved:
                 return f"Source not found: '{source}'"
-            shutil.move(source, destination)
-            return f"Moved '{source}' to '{destination}'."
+            shutil.move(resolved, destination)
+            return f"Moved '{os.path.basename(resolved)}' to '{destination}'."
         except Exception as e:
             return f"Failed to move file: {e}"
 
     def _delete_file(self, path: str) -> str:
         try:
-            if not os.path.exists(path):
+            resolved = self._resolve_path(path)
+            if not resolved:
                 return f"File not found: '{path}'"
-            if os.path.isdir(path):
-                shutil.rmtree(path)
-                return f"Deleted folder '{path}' and all its contents."
-            os.remove(path)
-            return f"Deleted file '{path}'."
+            if os.path.isdir(resolved):
+                shutil.rmtree(resolved)
+                return f"Deleted folder '{os.path.basename(resolved)}' and all its contents."
+            os.remove(resolved)
+            return f"Deleted file '{os.path.basename(resolved)}'."
         except Exception as e:
             return f"Failed to delete: {e}"
+
+    def _copy_file(self, source: str, destination: str) -> str:
+        try:
+            resolved = self._resolve_path(source)
+            if not resolved:
+                return f"Source not found: '{source}'"
+            if os.path.isdir(resolved):
+                return f"'{source}' is a directory. copy_file only supports files. Use move_file to move directories."
+            shutil.copy2(resolved, destination)
+            return f"Copied '{os.path.basename(resolved)}' to '{destination}'."
+        except Exception as e:
+            return f"Failed to copy file: {e}"
 
     async def run(self, start_message=None):
         retry_delay = 1

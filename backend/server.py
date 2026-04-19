@@ -75,6 +75,7 @@ DEFAULT_SETTINGS = {
         "take_screenshot": False,
         "move_file": True,
         "delete_file": True,
+        "copy_file": False,
         "kill_process": True,
         "create_project": False,
         "switch_project": False,
