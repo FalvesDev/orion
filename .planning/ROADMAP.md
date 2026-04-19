@@ -26,7 +26,10 @@ This milestone transforms ORION from a capable voice assistant into a full PC co
   3. User can say "open Spotify" or "open https://github.com" and the app or browser launches
   4. User can say "what processes are using the most memory" and ORION lists them with CPU/RAM stats
   5. User can say "mute the volume" or "set volume to 50%" and system volume changes immediately
-**Plans**: TBD
+**Plans**: 2 plans
+Plans:
+- [ ] 01-01-PLAN.md — Add copy_file tool (tools.py + ada.py + server.py)
+- [ ] 01-02-PLAN.md — Fix ~-path resolution bugs in _move_file and _delete_file
 
 ### Phase 2: Security
 **Goal**: Electron renderer process no longer has direct Node.js access, and each WebSocket session owns its own audio loop with clean teardown
@@ -37,7 +40,10 @@ This milestone transforms ORION from a capable voice assistant into a full PC co
   2. Window controls (minimize, maximize, close) and all backend events still work after the migration
   3. Opening a second browser tab or reconnecting the WebSocket creates an independent audio session without crosstalk or ghost loops
   4. Disconnecting a WebSocket client fully cleans up its audio_loop (no resource leak)
-**Plans**: TBD
+**Plans**: 2 plans
+Plans:
+- [ ] 01-01-PLAN.md — Add copy_file tool (tools.py + ada.py + server.py)
+- [ ] 01-02-PLAN.md — Fix ~-path resolution bugs in _move_file and _delete_file
 
 ### Phase 3: UX Polish
 **Goal**: The interface provides real-time feedback about system health, remembers panel layout between sessions, and supports hands-free push-to-talk from any window
@@ -48,7 +54,10 @@ This milestone transforms ORION from a capable voice assistant into a full PC co
   2. Status indicators update live when a subsystem connects or disconnects (no page refresh required)
   3. After repositioning and resizing panels, a full app restart restores the exact same layout
   4. Pressing Space (or the configured shortcut) activates push-to-talk even when ORION is not the focused window
-**Plans**: TBD
+**Plans**: 2 plans
+Plans:
+- [ ] 01-01-PLAN.md — Add copy_file tool (tools.py + ada.py + server.py)
+- [ ] 01-02-PLAN.md — Fix ~-path resolution bugs in _move_file and _delete_file
 **UI hint**: yes
 
 ## Progress
