@@ -36,14 +36,11 @@ import signal
 # --- SHUTDOWN HANDLER ---
 def signal_handler(sig, frame):
     print(f"\n[SERVER] Caught signal {sig}. Exiting gracefully...")
-    # Clean up audio loop
-    if audio_loop:
+    for loop in audio_loops.values():
         try:
-            print("[SERVER] Stopping Audio Loop...")
-            audio_loop.stop() 
+            loop.stop()
         except:
             pass
-    # Force kill
     print("[SERVER] Force exiting...")
     os._exit(0)
 
@@ -51,8 +48,8 @@ signal.signal(signal.SIGINT, signal_handler)
 signal.signal(signal.SIGTERM, signal_handler)
 
 # Global state
-audio_loop = None
-loop_task = None
+audio_loops = {}   # sid -> AudioLoop instance
+loop_tasks = {}    # sid -> asyncio.Task
 authenticator = None
 kasa_agent = KasaAgent()
 SETTINGS_FILE = "settings.json"
@@ -192,10 +189,15 @@ async def connect(sid, environ):
 @sio.event
 async def disconnect(sid):
     print(f"Client disconnected: {sid}")
+    loop = audio_loops.pop(sid, None)
+    task = loop_tasks.pop(sid, None)
+    if loop:
+        loop.stop()
+    if task and not task.done():
+        task.cancel()
 
 @sio.event
 async def start_audio(sid, data=None):
-    global audio_loop, loop_task
     
     # Optional: Block if not authenticated
     # Only block if auth is ENABLED and not authenticated
@@ -217,15 +219,16 @@ async def start_audio(sid, data=None):
             
     print(f"Using input device: Name='{device_name}', Index={device_index}")
     
-    if audio_loop:
-        if loop_task and (loop_task.done() or loop_task.cancelled()):
-             print("Audio loop task appeared finished/cancelled. Clearing and restarting...")
-             audio_loop = None
-             loop_task = None
+    if audio_loops.get(sid):
+        task = loop_tasks.get(sid)
+        if task and (task.done() or task.cancelled()):
+            print("Audio loop task appeared finished/cancelled. Clearing and restarting...")
+            audio_loops.pop(sid, None)
+            loop_tasks.pop(sid, None)
         else:
-             print("Audio loop already running. Re-connecting client to session.")
-             await sio.emit('status', {'msg': 'ORION Already Running'})
-             return
+            print("Audio loop already running. Re-connecting client to session.")
+            await sio.emit('status', {'msg': 'ORION Already Running'})
+            return
 
 
     # Callback to send audio data to frontend
@@ -292,8 +295,8 @@ async def start_audio(sid, data=None):
     # Initialize ADA
     try:
         print(f"Initializing AudioLoop with device_index={device_index}")
-        audio_loop = ada.AudioLoop(
-            video_mode="none", 
+        audio_loops[sid] = ada.AudioLoop(
+            video_mode="none",
             on_audio_data=on_audio_data,
             on_cad_data=on_cad_data,
             on_web_data=on_web_data,
@@ -312,16 +315,16 @@ async def start_audio(sid, data=None):
         print("AudioLoop initialized successfully.")
 
         # Apply current permissions
-        audio_loop.update_permissions(SETTINGS["tool_permissions"])
-        
+        audio_loops[sid].update_permissions(SETTINGS["tool_permissions"])
+
         # Check initial mute state
         if data and data.get('muted', False):
             print("Starting with Audio Paused")
-            audio_loop.set_paused(True)
+            audio_loops[sid].set_paused(True)
 
         print("Creating asyncio task for AudioLoop.run()")
-        loop_task = asyncio.create_task(audio_loop.run())
-        
+        loop_tasks[sid] = asyncio.create_task(audio_loops[sid].run())
+
         # Add a done callback to catch silent failures in the loop
         def handle_loop_exit(task):
             try:
@@ -331,42 +334,42 @@ async def start_audio(sid, data=None):
             except Exception as e:
                 print(f"Audio Loop Crashed: {e}")
                 # You could emit 'error' here if you have context
-        
-        loop_task.add_done_callback(handle_loop_exit)
-        
+
+        loop_tasks[sid].add_done_callback(handle_loop_exit)
+
         print("Emitting 'ORION Started'")
         await sio.emit('status', {'msg': 'ORION Started'})
 
         # Load saved printers
         saved_printers = SETTINGS.get("printers", [])
-        if saved_printers and audio_loop.printer_agent:
+        if saved_printers and audio_loops[sid].printer_agent:
             print(f"[SERVER] Loading {len(saved_printers)} saved printers...")
             for p in saved_printers:
-                audio_loop.printer_agent.add_printer_manually(
+                audio_loops[sid].printer_agent.add_printer_manually(
                     name=p.get("name", p["host"]),
                     host=p["host"],
                     port=p.get("port", 80),
                     printer_type=p.get("type", "moonraker"),
                     camera_url=p.get("camera_url")
                 )
-        
+
         # Start Printer Monitor
-        asyncio.create_task(monitor_printers_loop())
-        
+        asyncio.create_task(monitor_printers_loop(audio_loops[sid]))
+
     except Exception as e:
         print(f"CRITICAL ERROR STARTING ADA: {e}")
         import traceback
         traceback.print_exc()
         await sio.emit('error', {'msg': f"Failed to start: {str(e)}"})
-        audio_loop = None # Ensure we can try again
+        audio_loops.pop(sid, None)  # Ensure we can try again
 
 
-async def monitor_printers_loop():
+async def monitor_printers_loop(loop_ref):
     """Background task to query printer status periodically."""
     print("[SERVER] Starting Printer Monitor Loop")
-    while audio_loop and audio_loop.printer_agent:
+    while loop_ref and loop_ref.printer_agent:
         try:
-            agent = audio_loop.printer_agent
+            agent = loop_ref.printer_agent
             if not agent.printers:
                 await asyncio.sleep(5)
                 continue
@@ -395,26 +398,25 @@ async def monitor_printers_loop():
 
 @sio.event
 async def stop_audio(sid):
-    global audio_loop
-    if audio_loop:
-        audio_loop.stop() 
+    loop = audio_loops.pop(sid, None)
+    if loop:
+        loop.stop()
         print("Stopping Audio Loop")
-        audio_loop = None
         await sio.emit('status', {'msg': 'ORION Stopped'})
 
 @sio.event
 async def pause_audio(sid):
-    global audio_loop
-    if audio_loop:
-        audio_loop.set_paused(True)
+    loop = audio_loops.get(sid)
+    if loop:
+        loop.set_paused(True)
         print("Pausing Audio")
         await sio.emit('status', {'msg': 'Audio Paused'})
 
 @sio.event
 async def resume_audio(sid):
-    global audio_loop
-    if audio_loop:
-        audio_loop.set_paused(False)
+    loop = audio_loops.get(sid)
+    if loop:
+        loop.set_paused(False)
         print("Resuming Audio")
         await sio.emit('status', {'msg': 'Audio Resumed'})
 
@@ -426,32 +428,37 @@ async def confirm_tool(sid, data):
     
     print(f"[SERVER DEBUG] Received confirmation response for {request_id}: {confirmed}")
     
-    if audio_loop:
-        audio_loop.resolve_tool_confirmation(request_id, confirmed)
+    loop = audio_loops.get(sid)
+    if loop:
+        loop.resolve_tool_confirmation(request_id, confirmed)
     else:
         print("Audio loop not active, cannot resolve confirmation.")
 
 @sio.event
 async def shutdown(sid, data=None):
     """Gracefully shutdown the server when the application closes."""
-    global audio_loop, loop_task, authenticator
-    
+    global authenticator
+
     print("[SERVER] ========================================")
     print("[SERVER] SHUTDOWN SIGNAL RECEIVED FROM FRONTEND")
     print("[SERVER] ========================================")
-    
-    # Stop audio loop
-    if audio_loop:
-        print("[SERVER] Stopping Audio Loop...")
-        audio_loop.stop()
-        audio_loop = None
-    
-    # Cancel the loop task if running
-    if loop_task and not loop_task.done():
-        print("[SERVER] Cancelling loop task...")
-        loop_task.cancel()
-        loop_task = None
-    
+
+    # Stop all audio loops
+    for loop in list(audio_loops.values()):
+        try:
+            print("[SERVER] Stopping Audio Loop...")
+            loop.stop()
+        except:
+            pass
+    audio_loops.clear()
+
+    # Cancel all loop tasks
+    for task in list(loop_tasks.values()):
+        if not task.done():
+            print("[SERVER] Cancelling loop task...")
+            task.cancel()
+    loop_tasks.clear()
+
     # Stop authenticator if running
     if authenticator:
         print("[SERVER] Stopping Authenticator...")
@@ -466,33 +473,34 @@ async def shutdown(sid, data=None):
 async def user_input(sid, data):
     text = data.get('text')
     print(f"[SERVER DEBUG] User input received: '{text}'")
-    
-    if not audio_loop:
+
+    loop = audio_loops.get(sid)
+    if not loop:
         print("[SERVER DEBUG] [Error] Audio loop is None. Cannot send text.")
         return
 
-    if not audio_loop.session:
+    if not loop.session:
         print("[SERVER DEBUG] [Error] Session is None. Cannot send text.")
         return
 
     if text:
         print(f"[SERVER DEBUG] Sending message to model: '{text}'")
-        
+
         # Log User Input to Project History
-        if audio_loop and audio_loop.project_manager:
-            audio_loop.project_manager.log_chat("User", text)
-            
+        if loop.project_manager:
+            loop.project_manager.log_chat("User", text)
+
         # Use the same 'send' method that worked for audio, as 'send_realtime_input' and 'send_client_content' seem unstable in this env
         # INJECT VIDEO FRAME IF AVAILABLE (VAD-style logic for Text Input)
-        if audio_loop and audio_loop._latest_image_payload:
+        if loop._latest_image_payload:
             print(f"[SERVER DEBUG] Piggybacking video frame with text input.")
             try:
                 # Send frame first
-                await audio_loop.session.send(input=audio_loop._latest_image_payload, end_of_turn=False)
+                await loop.session.send(input=loop._latest_image_payload, end_of_turn=False)
             except Exception as e:
                 print(f"[SERVER DEBUG] Failed to send piggyback frame: {e}")
-                
-        await audio_loop.session.send(input=text, end_of_turn=True)
+
+        await loop.session.send(input=text, end_of_turn=True)
         print(f"[SERVER DEBUG] Message sent to model successfully.")
 
 import json
@@ -505,10 +513,11 @@ from pathlib import Path
 async def video_frame(sid, data):
     # data should contain 'image' which is binary (blob) or base64 encoded
     image_data = data.get('image')
-    if image_data and audio_loop:
+    loop = audio_loops.get(sid)
+    if image_data and loop:
         # We don't await this because we don't want to block the socket handler
         # But send_frame is async, so we create a task
-        asyncio.create_task(audio_loop.send_frame(image_data))
+        asyncio.create_task(loop.send_frame(image_data))
 
 @sio.event
 async def save_memory(sid, data):
@@ -559,21 +568,22 @@ async def upload_memory(sid, data):
             print("No memory data provided.")
             return
 
-        if not audio_loop:
-             print("[SERVER DEBUG] [Error] Audio loop is None. Cannot load memory.")
-             await sio.emit('error', {'msg': "System not ready (Audio Loop inactive)"})
-             return
-        
-        if not audio_loop.session:
-             print("[SERVER DEBUG] [Error] Session is None. Cannot load memory.")
-             await sio.emit('error', {'msg': "System not ready (No active session)"})
-             return
+        loop = audio_loops.get(sid)
+        if not loop:
+            print("[SERVER DEBUG] [Error] Audio loop is None. Cannot load memory.")
+            await sio.emit('error', {'msg': "System not ready (Audio Loop inactive)"})
+            return
+
+        if not loop.session:
+            print("[SERVER DEBUG] [Error] Session is None. Cannot load memory.")
+            await sio.emit('error', {'msg': "System not ready (No active session)"})
+            return
 
         # Send to model
         print("Sending memory context to model...")
         context_msg = f"System Notification: The user has uploaded a long-term memory file. Please load the following context into your understanding. The format is a text log of previous conversations:\n\n{memory_text}"
-        
-        await audio_loop.session.send(input=context_msg, end_of_turn=True)
+
+        await loop.session.send(input=context_msg, end_of_turn=True)
         print("Memory context sent successfully.")
         await sio.emit('status', {'msg': 'Memory Loaded into Context'})
 
@@ -616,8 +626,9 @@ async def iterate_cad(sid, data):
     # data: { prompt: "make it bigger" }
     prompt = data.get('prompt')
     print(f"Received iterate_cad request: '{prompt}'")
-    
-    if not audio_loop or not audio_loop.cad_agent:
+
+    loop = audio_loops.get(sid)
+    if not loop or not loop.cad_agent:
         await sio.emit('error', {'msg': "CAD Agent not available"})
         return
 
@@ -625,25 +636,25 @@ async def iterate_cad(sid, data):
         # Notify user work has started
         await sio.emit('status', {'msg': 'Iterating design...'})
         await sio.emit('cad_status', {'status': 'generating'})
-        
+
         # Call the agent with project path
-        cad_output_dir = str(audio_loop.project_manager.get_current_project_path() / "cad")
-        result = await audio_loop.cad_agent.iterate_prototype(prompt, output_dir=cad_output_dir)
-        
+        cad_output_dir = str(loop.project_manager.get_current_project_path() / "cad")
+        result = await loop.cad_agent.iterate_prototype(prompt, output_dir=cad_output_dir)
+
         if result:
             info = f"{len(result.get('data', ''))} bytes (STL)"
             print(f"Sending updated CAD data: {info}")
             await sio.emit('cad_data', result)
             # Save to Project
             if 'file_path' in result:
-                saved_path = audio_loop.project_manager.save_cad_artifact(result['file_path'], prompt)
+                saved_path = loop.project_manager.save_cad_artifact(result['file_path'], prompt)
                 if saved_path:
                     print(f"[SERVER] Saved iterated CAD to {saved_path}")
 
             await sio.emit('status', {'msg': 'Design updated'})
         else:
             await sio.emit('error', {'msg': 'Failed to update design'})
-            
+
     except Exception as e:
         print(f"Error iterating CAD: {e}")
         await sio.emit('error', {'msg': f"Iteration Error: {str(e)}"})
@@ -653,35 +664,35 @@ async def generate_cad(sid, data):
     # data: { prompt: "make a cube" }
     prompt = data.get('prompt')
     print(f"Received generate_cad request: '{prompt}'")
-    
-    if not audio_loop or not audio_loop.cad_agent:
+
+    loop = audio_loops.get(sid)
+    if not loop or not loop.cad_agent:
         await sio.emit('error', {'msg': "CAD Agent not available"})
         return
 
     try:
         await sio.emit('status', {'msg': 'Generating new design...'})
         await sio.emit('cad_status', {'status': 'generating'})
-        
+
         # Use generate_prototype based on prompt with project path
-        cad_output_dir = str(audio_loop.project_manager.get_current_project_path() / "cad")
-        result = await audio_loop.cad_agent.generate_prototype(prompt, output_dir=cad_output_dir)
-        
+        cad_output_dir = str(loop.project_manager.get_current_project_path() / "cad")
+        result = await loop.cad_agent.generate_prototype(prompt, output_dir=cad_output_dir)
+
         if result:
             info = f"{len(result.get('data', ''))} bytes (STL)"
             print(f"Sending newly generated CAD data: {info}")
             await sio.emit('cad_data', result)
 
-
             # Save to Project
             if 'file_path' in result:
-                saved_path = audio_loop.project_manager.save_cad_artifact(result['file_path'], prompt)
+                saved_path = loop.project_manager.save_cad_artifact(result['file_path'], prompt)
                 if saved_path:
                     print(f"[SERVER] Saved generated CAD to {saved_path}")
 
             await sio.emit('status', {'msg': 'Design generated'})
         else:
             await sio.emit('error', {'msg': 'Failed to generate design'})
-            
+
     except Exception as e:
         print(f"Error generating CAD: {e}")
         await sio.emit('error', {'msg': f"Generation Error: {str(e)}"})
@@ -691,28 +702,29 @@ async def prompt_web_agent(sid, data):
     # data: { prompt: "find xyz" }
     prompt = data.get('prompt')
     print(f"Received web agent prompt: '{prompt}'")
-    
-    if not audio_loop or not audio_loop.web_agent:
+
+    loop = audio_loops.get(sid)
+    if not loop or not loop.web_agent:
         await sio.emit('error', {'msg': "Web Agent not available"})
         return
 
     try:
         await sio.emit('status', {'msg': 'Web Agent running...'})
-        
+
         # We assume web_agent has a run method or similar.
         # This might block the loop if not strictly async or offloaded.
         # Ideally web_agent.run is async.
         # And it should emit 'browser_snap' and logs automatically via hooks if setup.
-        
+
         # We might need to launch this as a task if it's long running?
-        # asyncio.create_task(audio_loop.web_agent.run(prompt))
+        # asyncio.create_task(loop.web_agent.run(prompt))
         # But we want to catch errors here.
-        
+
         # Based on typical agent design, run() is the entry point.
-        await audio_loop.web_agent.run(prompt)
-        
+        await loop.web_agent.run(prompt)
+
         await sio.emit('status', {'msg': 'Web Agent finished'})
-        
+
     except Exception as e:
         print(f"Error running Web Agent: {e}")
         await sio.emit('error', {'msg': f"Web Agent Error: {str(e)}"})
@@ -720,9 +732,10 @@ async def prompt_web_agent(sid, data):
 @sio.event
 async def discover_printers(sid):
     print("Received discover_printers request")
-    
-    # If audio_loop isn't ready yet, return saved printers from settings
-    if not audio_loop or not audio_loop.printer_agent:
+
+    loop = audio_loops.get(sid)
+    # If audio loop isn't ready yet, return saved printers from settings
+    if not loop or not loop.printer_agent:
         saved_printers = SETTINGS.get("printers", [])
         if saved_printers:
             # Convert saved printers to the expected format
@@ -735,16 +748,16 @@ async def discover_printers(sid):
                     "printer_type": p.get("type", "unknown"),
                     "camera_url": p.get("camera_url")
                 })
-            print(f"[SERVER] Returning {len(printer_list)} saved printers (audio_loop not ready)")
+            print(f"[SERVER] Returning {len(printer_list)} saved printers (loop not ready)")
             await sio.emit('printer_list', printer_list)
             return
         else:
             await sio.emit('printer_list', [])
             await sio.emit('status', {'msg': "Connect to ORION to enable printer discovery"})
             return
-        
+
     try:
-        printers = await audio_loop.printer_agent.discover_printers()
+        printers = await loop.printer_agent.discover_printers()
         await sio.emit('printer_list', printers)
         await sio.emit('status', {'msg': f"Found {len(printers)} printers"})
     except Exception as e:
@@ -768,15 +781,16 @@ async def add_printer(sid, data):
     
     print(f"Received add_printer request: {host}:{port} ({ptype})")
     
-    if not audio_loop or not audio_loop.printer_agent:
+    loop = audio_loops.get(sid)
+    if not loop or not loop.printer_agent:
         await sio.emit('error', {'msg': "Printer Agent not available"})
         return
-        
+
     try:
         # Add manually
         camera_url = data.get('camera_url')
-        printer = audio_loop.printer_agent.add_printer_manually(name, host, port=port, printer_type=ptype, camera_url=camera_url)
-        
+        printer = loop.printer_agent.add_printer_manually(name, host, port=port, printer_type=ptype, camera_url=camera_url)
+
         # Save to settings
         new_printer_config = {
             "name": name,
@@ -785,42 +799,42 @@ async def add_printer(sid, data):
             "type": ptype,
             "camera_url": camera_url
         }
-        
+
         # Check if already exists to avoid duplicates
         exists = False
         for p in SETTINGS.get("printers", []):
             if p["host"] == host and p["port"] == port:
                 exists = True
                 break
-        
+
         if not exists:
             if "printers" not in SETTINGS:
                 SETTINGS["printers"] = []
             SETTINGS["printers"].append(new_printer_config)
             save_settings()
             print(f"[SERVER] Saved printer {name} to settings.")
-        
+
         # Probe to confirm/correct type
         print(f"Probing {host} to confirm type...")
-        # Try port 7125 (Moonraker) and 4408 (Fluidd/K1) 
+        # Try port 7125 (Moonraker) and 4408 (Fluidd/K1)
         ports_to_try = [80, 7125, 4408]
-        
+
         actual_type = "unknown"
         for port in ports_to_try:
-             found_type = await audio_loop.printer_agent._probe_printer_type(host, port)
-             if found_type.value != "unknown":
-                 actual_type = found_type
-                 # Update port if different
-                 if port != 80:
-                     printer.port = port
-                 break
-        
+            found_type = await loop.printer_agent._probe_printer_type(host, port)
+            if found_type.value != "unknown":
+                actual_type = found_type
+                # Update port if different
+                if port != 80:
+                    printer.port = port
+                break
+
         if actual_type != "unknown" and actual_type != printer.printer_type:
-             printer.printer_type = actual_type
-             print(f"Corrected type to {actual_type.value} on port {printer.port}")
-             
+            printer.printer_type = actual_type
+            print(f"Corrected type to {actual_type.value} on port {printer.port}")
+
         # Refresh list for everyone
-        printers = [p.to_dict() for p in audio_loop.printer_agent.printers.values()]
+        printers = [p.to_dict() for p in loop.printer_agent.printers.values()]
         await sio.emit('printer_list', printers)
         await sio.emit('status', {'msg': f"Added printer: {name}"})
         
@@ -833,29 +847,30 @@ async def print_stl(sid, data):
     print(f"Received print_stl request: {data}")
     # data: { stl_path: "path/to.stl" | "current", printer: "name_or_ip", profile: "optional" }
     
-    if not audio_loop or not audio_loop.printer_agent:
+    loop = audio_loops.get(sid)
+    if not loop or not loop.printer_agent:
         await sio.emit('error', {'msg': "Printer Agent not available"})
         return
-        
+
     try:
         stl_path = data.get('stl_path', 'current')
         printer_name = data.get('printer')
         profile = data.get('profile')
-        
+
         if not printer_name:
-             await sio.emit('error', {'msg': "No printer specified"})
-             return
-             
+            await sio.emit('error', {'msg': "No printer specified"})
+            return
+
         await sio.emit('status', {'msg': f"Preparing print for {printer_name}..."})
-        
+
         # Get current project path for resolution
         current_project_path = None
-        if audio_loop and audio_loop.project_manager:
-            current_project_path = str(audio_loop.project_manager.get_current_project_path())
+        if loop.project_manager:
+            current_project_path = str(loop.project_manager.get_current_project_path())
             print(f"[SERVER DEBUG] Using project path: {current_project_path}")
 
         # Resolve STL path before slicing so we can preview it
-        resolved_stl = audio_loop.printer_agent._resolve_file_path(stl_path, current_project_path)
+        resolved_stl = loop.printer_agent._resolve_file_path(stl_path, current_project_path)
         
         if resolved_stl and os.path.exists(resolved_stl):
             # Open the STL in the CAD module for preview
@@ -885,9 +900,9 @@ async def print_stl(sid, data):
             if percent < 100:
                  await sio.emit('status', {'msg': f"Slicing: {percent}%"})
 
-        result = await audio_loop.printer_agent.print_stl(
-            stl_path, 
-            printer_name, 
+        result = await loop.printer_agent.print_stl(
+            stl_path,
+            printer_name,
             profile,
             progress_callback=on_slicing_progress,
             root_path=current_project_path
@@ -904,12 +919,13 @@ async def print_stl(sid, data):
 async def get_slicer_profiles(sid):
     """Get available OrcaSlicer profiles for manual selection."""
     print("Received get_slicer_profiles request")
-    if not audio_loop or not audio_loop.printer_agent:
+    loop = audio_loops.get(sid)
+    if not loop or not loop.printer_agent:
         await sio.emit('error', {'msg': "Printer Agent not available"})
         return
-    
+
     try:
-        profiles = audio_loop.printer_agent.get_available_profiles()
+        profiles = loop.printer_agent.get_available_profiles()
         await sio.emit('slicer_profiles', profiles)
     except Exception as e:
         print(f"Error getting slicer profiles: {e}")
@@ -964,8 +980,8 @@ async def update_settings(sid, data):
     # Handle specific keys if needed
     if "tool_permissions" in data:
         SETTINGS["tool_permissions"].update(data["tool_permissions"])
-        if audio_loop:
-            audio_loop.update_permissions(SETTINGS["tool_permissions"])
+        for loop in audio_loops.values():
+            loop.update_permissions(SETTINGS["tool_permissions"])
             
     if "face_auth_enabled" in data:
         SETTINGS["face_auth_enabled"] = data["face_auth_enabled"]
@@ -996,8 +1012,8 @@ async def update_tool_permissions(sid, data):
     SETTINGS["tool_permissions"].update(data)
     save_settings()
     
-    if audio_loop:
-        audio_loop.update_permissions(SETTINGS["tool_permissions"])
+    for loop in audio_loops.values():
+        loop.update_permissions(SETTINGS["tool_permissions"])
     # Broadcast update to all
     await sio.emit('tool_permissions', SETTINGS["tool_permissions"])
 
