@@ -4,6 +4,10 @@ import io
 import os
 import sys
 import traceback
+import platform
+import shutil
+import subprocess
+import webbrowser
 from dotenv import load_dotenv
 import cv2
 import pyaudio
@@ -737,7 +741,7 @@ class AudioLoop:
                         print("The tool was called")
                         function_responses = []
                         for fc in response.tool_call.function_calls:
-                            if fc.name in ["generate_cad", "run_web_agent", "write_file", "read_directory", "read_file", "create_project", "switch_project", "list_projects", "list_smart_devices", "control_light", "discover_printers", "print_stl", "get_print_status", "iterate_cad"]:
+                            if fc.name in ["generate_cad", "run_web_agent", "write_file", "read_directory", "read_file", "create_project", "switch_project", "list_projects", "list_smart_devices", "control_light", "discover_printers", "print_stl", "get_print_status", "iterate_cad", "open_file", "open_browser", "open_app", "set_system_volume", "list_processes", "kill_process", "take_screenshot", "move_file", "delete_file"]:
                                 prompt = fc.args.get("prompt", "") # Prompt is not present for all tools
                                 
                                 # Check Permissions (Default to True if not set)
@@ -771,18 +775,6 @@ class AudioLoop:
                                         self._pending_confirmations.pop(request_id, None)
 
                                     print(f"[ADA DEBUG] [CONFIRM] Request {request_id} resolved. Confirmed: {confirmed}")
-
-                                    if not confirmed:
-                                        print(f"[ADA DEBUG] [DENY] Tool call '{fc.name}' denied by user.")
-                                        function_response = types.FunctionResponse(
-                                            id=fc.id,
-                                            name=fc.name,
-                                            response={
-                                                "result": "User denied the request to use this tool.",
-                                            }
-                                        )
-                                        function_responses.append(function_response)
-                                        continue
 
                                     if not confirmed:
                                         print(f"[ADA DEBUG] [DENY] Tool call '{fc.name}' denied by user.")
@@ -1128,6 +1120,93 @@ class AudioLoop:
                                         id=fc.id, name=fc.name, response={"result": result_str}
                                     )
                                     function_responses.append(function_response)
+
+                                elif fc.name == "open_file":
+                                    path = fc.args["path"]
+                                    print(f"[ADA DEBUG] [TOOL] Tool Call: 'open_file' path='{path}'")
+                                    result_str = await asyncio.to_thread(self._open_file, path)
+                                    function_response = types.FunctionResponse(
+                                        id=fc.id, name=fc.name, response={"result": result_str}
+                                    )
+                                    function_responses.append(function_response)
+
+                                elif fc.name == "open_browser":
+                                    url = fc.args["url"]
+                                    print(f"[ADA DEBUG] [TOOL] Tool Call: 'open_browser' url='{url}'")
+                                    result_str = await asyncio.to_thread(self._open_browser, url)
+                                    function_response = types.FunctionResponse(
+                                        id=fc.id, name=fc.name, response={"result": result_str}
+                                    )
+                                    function_responses.append(function_response)
+
+                                elif fc.name == "open_app":
+                                    app_name = fc.args["app_name"]
+                                    print(f"[ADA DEBUG] [TOOL] Tool Call: 'open_app' app='{app_name}'")
+                                    result_str = await asyncio.to_thread(self._open_app, app_name)
+                                    function_response = types.FunctionResponse(
+                                        id=fc.id, name=fc.name, response={"result": result_str}
+                                    )
+                                    function_responses.append(function_response)
+
+                                elif fc.name == "set_system_volume":
+                                    percent = int(fc.args["percent"])
+                                    print(f"[ADA DEBUG] [TOOL] Tool Call: 'set_system_volume' percent={percent}")
+                                    result_str = await asyncio.to_thread(self._set_volume, percent)
+                                    function_response = types.FunctionResponse(
+                                        id=fc.id, name=fc.name, response={"result": result_str}
+                                    )
+                                    function_responses.append(function_response)
+
+                                elif fc.name == "list_processes":
+                                    sort_by = fc.args.get("sort_by", "cpu")
+                                    limit = int(fc.args.get("limit", 10))
+                                    print(f"[ADA DEBUG] [TOOL] Tool Call: 'list_processes'")
+                                    result_str = await asyncio.to_thread(self._list_processes, sort_by, limit)
+                                    function_response = types.FunctionResponse(
+                                        id=fc.id, name=fc.name, response={"result": result_str}
+                                    )
+                                    function_responses.append(function_response)
+
+                                elif fc.name == "kill_process":
+                                    pid = fc.args.get("pid")
+                                    name = fc.args.get("name")
+                                    print(f"[ADA DEBUG] [TOOL] Tool Call: 'kill_process' pid={pid} name={name}")
+                                    result_str = await asyncio.to_thread(self._kill_process, pid, name)
+                                    function_response = types.FunctionResponse(
+                                        id=fc.id, name=fc.name, response={"result": result_str}
+                                    )
+                                    function_responses.append(function_response)
+
+                                elif fc.name == "take_screenshot":
+                                    print(f"[ADA DEBUG] [TOOL] Tool Call: 'take_screenshot'")
+                                    frame = await asyncio.to_thread(self._get_screen)
+                                    if frame and self.out_queue:
+                                        await self.out_queue.put(frame)
+                                    result_str = "Screenshot captured and sent to your visual context."
+                                    function_response = types.FunctionResponse(
+                                        id=fc.id, name=fc.name, response={"result": result_str}
+                                    )
+                                    function_responses.append(function_response)
+
+                                elif fc.name == "move_file":
+                                    source = fc.args["source"]
+                                    destination = fc.args["destination"]
+                                    print(f"[ADA DEBUG] [TOOL] Tool Call: 'move_file' {source} -> {destination}")
+                                    result_str = await asyncio.to_thread(self._move_file, source, destination)
+                                    function_response = types.FunctionResponse(
+                                        id=fc.id, name=fc.name, response={"result": result_str}
+                                    )
+                                    function_responses.append(function_response)
+
+                                elif fc.name == "delete_file":
+                                    path = fc.args["path"]
+                                    print(f"[ADA DEBUG] [TOOL] Tool Call: 'delete_file' path='{path}'")
+                                    result_str = await asyncio.to_thread(self._delete_file, path)
+                                    function_response = types.FunctionResponse(
+                                        id=fc.id, name=fc.name, response={"result": result_str}
+                                    )
+                                    function_responses.append(function_response)
+
                         if function_responses:
                             await self.session.send_tool_response(function_responses=function_responses)
                 
@@ -1205,6 +1284,139 @@ class AudioLoop:
             await asyncio.sleep(1.0)
             if self.out_queue:
                 await self.out_queue.put(frame)
+
+    # --- PC Control helpers (run in thread via asyncio.to_thread) ---
+
+    def _open_file(self, path: str) -> str:
+        try:
+            if not os.path.exists(path):
+                return f"File not found: '{path}'"
+            system = platform.system()
+            if system == "Linux":
+                subprocess.Popen(["xdg-open", path])
+            elif system == "Darwin":
+                subprocess.Popen(["open", path])
+            elif system == "Windows":
+                os.startfile(path)
+            return f"Opened '{os.path.basename(path)}' with default application."
+        except Exception as e:
+            return f"Failed to open file: {e}"
+
+    def _open_browser(self, url: str) -> str:
+        try:
+            if not url.startswith(("http://", "https://")):
+                url = "https://" + url
+            webbrowser.open(url)
+            return f"Opened browser at: {url}"
+        except Exception as e:
+            return f"Failed to open browser: {e}"
+
+    def _open_app(self, app_name: str) -> str:
+        try:
+            system = platform.system()
+            if system == "Windows":
+                subprocess.Popen(["start", app_name], shell=True)
+            else:
+                subprocess.Popen([app_name])
+            return f"Launched '{app_name}'."
+        except FileNotFoundError:
+            return f"Application '{app_name}' not found. Check the command name."
+        except Exception as e:
+            return f"Failed to launch '{app_name}': {e}"
+
+    def _set_volume(self, percent: int) -> str:
+        try:
+            percent = max(0, min(100, percent))
+            system = platform.system()
+            if system == "Linux":
+                subprocess.run(["pactl", "set-sink-volume", "@DEFAULT_SINK@", f"{percent}%"], check=True)
+            elif system == "Darwin":
+                subprocess.run(["osascript", "-e", f"set volume output volume {percent}"], check=True)
+            elif system == "Windows":
+                # Uses nircmd if available, otherwise warn
+                subprocess.run(["nircmd", "setsysvolume", str(int(percent * 655.35))], check=True)
+            return f"System volume set to {percent}%."
+        except Exception as e:
+            return f"Failed to set volume: {e}"
+
+    def _list_processes(self, sort_by: str = "cpu", limit: int = 10) -> str:
+        try:
+            import psutil
+            procs = []
+            for p in psutil.process_iter(["pid", "name", "cpu_percent", "memory_percent"]):
+                try:
+                    procs.append(p.info)
+                except (psutil.NoSuchProcess, psutil.AccessDenied):
+                    pass
+            # First call to cpu_percent returns 0.0 — do a quick second pass
+            import time as _time
+            _time.sleep(0.2)
+            for p in psutil.process_iter(["pid", "name", "cpu_percent", "memory_percent"]):
+                try:
+                    info = p.info
+                    for existing in procs:
+                        if existing["pid"] == info["pid"]:
+                            existing["cpu_percent"] = info["cpu_percent"]
+                except Exception:
+                    pass
+
+            key = "cpu_percent" if sort_by == "cpu" else "memory_percent"
+            procs.sort(key=lambda x: x.get(key) or 0, reverse=True)
+            procs = procs[:limit]
+            lines = [f"Top {limit} processes by {sort_by}:"]
+            for p in procs:
+                lines.append(f"  PID {p['pid']:6d} | CPU {p['cpu_percent']:5.1f}% | MEM {p['memory_percent']:4.1f}% | {p['name']}")
+            return "\n".join(lines)
+        except ImportError:
+            return "psutil not installed. Run: pip install psutil"
+        except Exception as e:
+            return f"Failed to list processes: {e}"
+
+    def _kill_process(self, pid=None, name=None) -> str:
+        try:
+            import psutil
+            if pid:
+                proc = psutil.Process(int(pid))
+                proc_name = proc.name()
+                proc.terminate()
+                return f"Terminated process '{proc_name}' (PID {pid})."
+            elif name:
+                killed = []
+                for p in psutil.process_iter(["pid", "name"]):
+                    if p.info["name"] and name.lower() in p.info["name"].lower():
+                        p.terminate()
+                        killed.append(f"{p.info['name']} (PID {p.info['pid']})")
+                if killed:
+                    return f"Terminated: {', '.join(killed)}"
+                return f"No process found with name '{name}'."
+            return "Provide either pid or name."
+        except psutil.NoSuchProcess:
+            return f"Process PID {pid} no longer exists."
+        except ImportError:
+            return "psutil not installed. Run: pip install psutil"
+        except Exception as e:
+            return f"Failed to kill process: {e}"
+
+    def _move_file(self, source: str, destination: str) -> str:
+        try:
+            if not os.path.exists(source):
+                return f"Source not found: '{source}'"
+            shutil.move(source, destination)
+            return f"Moved '{source}' to '{destination}'."
+        except Exception as e:
+            return f"Failed to move file: {e}"
+
+    def _delete_file(self, path: str) -> str:
+        try:
+            if not os.path.exists(path):
+                return f"File not found: '{path}'"
+            if os.path.isdir(path):
+                shutil.rmtree(path)
+                return f"Deleted folder '{path}' and all its contents."
+            os.remove(path)
+            return f"Deleted file '{path}'."
+        except Exception as e:
+            return f"Failed to delete: {e}"
 
     async def run(self, start_message=None):
         retry_delay = 1
