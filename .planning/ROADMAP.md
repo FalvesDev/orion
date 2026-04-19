@@ -199,7 +199,7 @@ Plans:
 |-------|----------------|--------|-----------|
 | 1. PC Control | 2/2 | Complete | 2026-04-18 |
 | 2. Security | 2/2 | Complete | 2026-04-19 |
-| 3. UX Polish | 0/3 | Not started | - |
+| 3. UX Polish | 2/3 | In progress | - |
 | 4. Screenshot e Visão de Tela | 0/0 | Not planned | - |
 | 5. Controle Avançado de PC | 0/0 | Not planned | - |
 | 6. VAD Neural e Memória Vetorial | 0/0 | Not planned | - |
