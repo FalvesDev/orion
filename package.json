@@ -4,9 +4,9 @@
   "description": "ORION - Omniscient Reasoning and Intelligent Operations Node",
   "main": "electron/main.js",
   "scripts": {
-    "dev": "concurrently -k \"vite\" \"wait-on tcp:5173 && npx electron .\"",
+    "dev": "concurrently -k \"vite\" \"wait-on tcp:5173 && npx electron . --no-sandbox\"",
     "build": "vite build",
-    "start": "npx electron ."
+    "start": "npx electron . --no-sandbox"
   },
   "keywords": [
     "ai",
