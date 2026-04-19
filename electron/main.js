@@ -120,7 +120,7 @@ app.whenReady().then(() => {
         if (mainWindow) mainWindow.close();
     });
 
-    globalShortcut.register('Space', () => {
+    globalShortcut.register('Alt+Space', () => {
         if (mainWindow) mainWindow.webContents.send('ptt-toggle');
     });
 

@@ -7,5 +7,8 @@ export default defineConfig({
     base: './', // Important for Electron
     server: {
         port: 5173,
+    },
+    watch: {
+        ignored: ['**/.venv/**', '**/node_modules/**'],
     }
 })
