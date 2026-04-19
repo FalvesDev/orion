@@ -8,7 +8,13 @@
     "build": "vite build",
     "start": "npx electron ."
   },
-  "keywords": ["ai", "assistant", "electron", "gemini", "voice"],
+  "keywords": [
+    "ai",
+    "assistant",
+    "electron",
+    "gemini",
+    "voice"
+  ],
   "author": "Felipe Alves <108808027+FalvesDev@users.noreply.github.com>",
   "license": "MIT",
   "dependencies": {
@@ -21,6 +27,7 @@
     "lucide-react": "^0.300.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
+    "react-markdown": "^10.1.0",
     "socket.io-client": "^4.7.4",
     "tailwind-merge": "^2.2.0",
     "three": "^0.160.0"
