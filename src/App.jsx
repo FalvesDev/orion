@@ -20,7 +20,6 @@ import ToastContainer, { showToast } from './components/Toast';
 
 
 const socket = io('http://localhost:8000');
-const { ipcRenderer } = window.require('electron');
 
 function App() {
     const [status, setStatus] = useState('Disconnected');
@@ -1105,14 +1104,14 @@ function App() {
         }
     };
 
-    const handleMinimize = () => ipcRenderer.send('window-minimize');
-    const handleMaximize = () => ipcRenderer.send('window-maximize');
+    const handleMinimize = () => window.api.minimize();
+    const handleMaximize = () => window.api.maximize();
 
     // Close Application - memory is now actively saved to project, no prompt needed
     const handleCloseRequest = () => {
         // Emit shutdown signal to backend for graceful shutdown
         // Use volatile emit with timeout fallback to ensure window closes even if server is unresponsive
-        const closeWindow = () => ipcRenderer.send('window-close');
+        const closeWindow = () => window.api.close();
 
         if (socket.connected) {
             console.log('[APP] Sending shutdown signal to backend...');
