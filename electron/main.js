@@ -70,9 +70,12 @@ function startPythonBackend() {
     const scriptPath = path.join(__dirname, '../backend/server.py');
     console.log(`Starting Python backend: ${scriptPath}`);
 
-    // Detect Python: prefer conda env ada_v2, fallback to system python
+    // Detect Python: prefer local .venv, then conda env, then system python
     const userProfile = process.env.USERPROFILE || process.env.HOME || '';
+    const appRoot = path.join(__dirname, '..');
     const pythonCandidates = [
+        path.join(appRoot, '.venv', 'bin', 'python'),
+        path.join(appRoot, '.venv', 'Scripts', 'python.exe'),
         path.join(userProfile, 'miniconda3', 'envs', 'ada_v2', 'python.exe'),
         path.join(userProfile, 'anaconda3', 'envs', 'ada_v2', 'python.exe'),
         path.join(userProfile, 'AppData', 'Local', 'miniconda3', 'envs', 'ada_v2', 'python.exe'),
