@@ -11,7 +11,7 @@ This milestone transforms ORION from a capable voice assistant into a full PC co
 - Decimal phases (e.g., 2.1): Urgent insertions (marked with INSERTED)
 
 - [ ] **Phase 1: PC Control** - ORION can read, navigate, and control the local filesystem and OS
-- [ ] **Phase 2: Security** - Electron renderer isolation hardened and audio session lifecycle fixed
+- [x] **Phase 2: Security** - Electron renderer isolation hardened and audio session lifecycle fixed
 - [ ] **Phase 3: UX Polish** - Status bar, layout persistence, and push-to-talk make the assistant feel production-ready
 - [ ] **Phase 4: Screenshot e Visão de Tela** - ORION pode capturar a tela e enviá-la ao Gemini para análise visual em tempo real
 - [ ] **Phase 5: Controle Avançado de PC** - Mouse, teclado, janelas e clipboard controlados por voz via pyautogui
@@ -53,8 +53,8 @@ Plans:
   4. Disconnecting a WebSocket client fully cleans up its audio_loop (no resource leak)
 **Plans**: 2 plans
 Plans:
-- [ ] 02-01-PLAN.md — Electron IPC migration: preload.js + contextIsolation + renderer migration
-- [ ] 02-02-PLAN.md — Backend per-session audio loop refactor (server.py)
+- [x] 02-01-PLAN.md — Electron IPC migration: preload.js + contextIsolation + renderer migration
+- [x] 02-02-PLAN.md — Backend per-session audio loop refactor (server.py)
 
 ### Phase 3: UX Polish
 **Goal**: The interface provides real-time feedback about system health, remembers panel layout between sessions, and supports hands-free push-to-talk from any window
@@ -198,7 +198,7 @@ Plans:
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. PC Control | 2/2 | Complete | 2026-04-18 |
-| 2. Security | 0/2 | Ready | - |
+| 2. Security | 2/2 | Complete | 2026-04-19 |
 | 3. UX Polish | 0/3 | Not started | - |
 | 4. Screenshot e Visão de Tela | 0/0 | Not planned | - |
 | 5. Controle Avançado de PC | 0/0 | Not planned | - |
