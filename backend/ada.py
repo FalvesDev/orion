@@ -1184,10 +1184,27 @@ class AudioLoop:
         image_bytes = image_io.read()
         return {"mime_type": "image/jpeg", "data": base64.b64encode(image_bytes).decode()}
 
-    async def _get_screen(self):
-        pass 
+    def _get_screen(self):
+        with mss.mss() as sct:
+            monitor = sct.monitors[1]
+            screenshot = sct.grab(monitor)
+            img = PIL.Image.frombytes("RGB", screenshot.size, screenshot.bgra, "raw", "BGRX")
+            img.thumbnail([1024, 1024])
+            image_io = io.BytesIO()
+            img.save(image_io, format="jpeg", quality=80)
+            image_io.seek(0)
+            image_bytes = image_io.read()
+            return {"mime_type": "image/jpeg", "data": base64.b64encode(image_bytes).decode()}
+
     async def get_screen(self):
-         pass
+        while True:
+            if self.paused:
+                await asyncio.sleep(0.1)
+                continue
+            frame = await asyncio.to_thread(self._get_screen)
+            await asyncio.sleep(1.0)
+            if self.out_queue:
+                await self.out_queue.put(frame)
 
     async def run(self, start_message=None):
         retry_delay = 1
