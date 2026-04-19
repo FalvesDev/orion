@@ -60,14 +60,30 @@ SETTINGS_FILE = "settings.json"
 DEFAULT_SETTINGS = {
     "face_auth_enabled": False, # Default OFF as requested
     "tool_permissions": {
-        "generate_cad": True,
+        # True = pede confirmação, False = executa automaticamente
+        "generate_cad": False,
+        "iterate_cad": False,
         "run_web_agent": True,
-        "write_file": True,
-        "read_directory": True,
-        "read_file": True,
-        "create_project": True,
-        "switch_project": True,
-        "list_projects": True
+        "write_file": False,
+        "read_directory": False,
+        "read_file": False,
+        "open_file": False,
+        "open_browser": False,
+        "open_app": False,
+        "set_system_volume": False,
+        "list_processes": False,
+        "take_screenshot": False,
+        "move_file": True,
+        "delete_file": True,
+        "kill_process": True,
+        "create_project": False,
+        "switch_project": False,
+        "list_projects": False,
+        "list_smart_devices": False,
+        "control_light": False,
+        "discover_printers": False,
+        "print_stl": True,
+        "get_print_status": False,
     },
     "printers": [], # List of {host, port, name, type}
     "kasa_devices": [], # List of {ip, alias, model}
