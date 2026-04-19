@@ -1,5 +1,5 @@
 const electron = require('electron');
-const { app, BrowserWindow, ipcMain } = electron;
+const { app, BrowserWindow, ipcMain, globalShortcut } = electron;
 const path = require('path');
 const { spawn } = require('child_process');
 
@@ -120,6 +120,10 @@ app.whenReady().then(() => {
         if (mainWindow) mainWindow.close();
     });
 
+    globalShortcut.register('Space', () => {
+        if (mainWindow) mainWindow.webContents.send('ptt-toggle');
+    });
+
     checkBackendPort(8000).then((isTaken) => {
         if (isTaken) {
             console.log('Port 8000 is taken. Assuming backend is already running manually.');
@@ -191,6 +195,7 @@ app.on('window-all-closed', () => {
 });
 
 app.on('will-quit', () => {
+    globalShortcut.unregisterAll();
     console.log('App closing... Killing Python backend.');
     if (pythonProcess) {
         if (process.platform === 'win32') {

@@ -87,26 +87,38 @@ function App() {
 
     // Modular Mode State
     const [isModularMode, setIsModularMode] = useState(false);
-    const [elementPositions, setElementPositions] = useState({
-        video: { x: 40, y: 80 }, // Initial positions (approximate)
-        visualizer: { x: window.innerWidth / 2, y: window.innerHeight / 2 - 150 },
-        chat: { x: window.innerWidth / 2, y: window.innerHeight / 2 + 100 },
-        cad: { x: window.innerWidth / 2 + 300, y: window.innerHeight / 2 },
-        browser: { x: window.innerWidth / 2 - 300, y: window.innerHeight / 2 },
-        kasa: { x: window.innerWidth / 2 + 350, y: window.innerHeight / 2 - 100 },
-        printer: { x: window.innerWidth / 2 - 350, y: window.innerHeight / 2 - 100 },
-        tools: { x: window.innerWidth / 2, y: window.innerHeight - 100 } // Fixed bottom OFFSET
+    const [elementPositions, setElementPositions] = useState(() => {
+        const defaultPositions = {
+            video: { x: 40, y: 80 },
+            visualizer: { x: window.innerWidth / 2, y: window.innerHeight / 2 - 150 },
+            chat: { x: window.innerWidth / 2, y: window.innerHeight / 2 + 100 },
+            cad: { x: window.innerWidth / 2 + 300, y: window.innerHeight / 2 },
+            browser: { x: window.innerWidth / 2 - 300, y: window.innerHeight / 2 },
+            kasa: { x: window.innerWidth / 2 + 350, y: window.innerHeight / 2 - 100 },
+            printer: { x: window.innerWidth / 2 - 350, y: window.innerHeight / 2 - 100 },
+            tools: { x: window.innerWidth / 2, y: window.innerHeight - 100 }
+        };
+        try {
+            const saved = localStorage.getItem('orion_element_positions');
+            return saved ? JSON.parse(saved) : defaultPositions;
+        } catch { return defaultPositions; }
     });
 
-    const [elementSizes, setElementSizes] = useState({
-        visualizer: { w: 550, h: 350 },
-        chat: { w: 550, h: 220 },
-        tools: { w: 500, h: 80 }, // Approx
-        cad: { w: 400, h: 400 },
-        browser: { w: 550, h: 380 },
-        video: { w: 320, h: 180 },
-        kasa: { w: 300, h: 380 }, // Approx
-        printer: { w: 380, h: 380 } // Approx
+    const [elementSizes, setElementSizes] = useState(() => {
+        const defaultSizes = {
+            visualizer: { w: 550, h: 350 },
+            chat: { w: 550, h: 220 },
+            tools: { w: 500, h: 80 },
+            cad: { w: 400, h: 400 },
+            browser: { w: 550, h: 380 },
+            video: { w: 320, h: 180 },
+            kasa: { w: 300, h: 380 },
+            printer: { w: 380, h: 380 }
+        };
+        try {
+            const saved = localStorage.getItem('orion_element_sizes');
+            return saved ? JSON.parse(saved) : defaultSizes;
+        } catch { return defaultSizes; }
     });
     const [activeDragElement, setActiveDragElement] = useState(null);
 
@@ -669,6 +681,14 @@ function App() {
         }
     }, [selectedWebcamId]);
 
+    useEffect(() => {
+        localStorage.setItem('orion_element_positions', JSON.stringify(elementPositions));
+    }, [elementPositions]);
+
+    useEffect(() => {
+        localStorage.setItem('orion_element_sizes', JSON.stringify(elementSizes));
+    }, [elementSizes]);
+
     // Start/Stop Mic Visualizer
     useEffect(() => {
         if (selectedMicId) {
@@ -1096,6 +1116,12 @@ function App() {
         }
     };
 
+    useEffect(() => {
+        if (window.api?.onPttToggle) {
+            window.api.onPttToggle(toggleMute);
+        }
+    }, []);
+
     const handleSend = (e) => {
         if (e.key === 'Enter' && inputValue.trim()) {
             socket.emit('user_input', { text: inputValue });
@@ -1426,7 +1452,13 @@ function App() {
 
                 {/* Top Visualizer (User Mic) */}
                 <div className="flex-1 flex justify-center mx-4">
-                    <TopAudioBar audioData={micAudioData} />
+                    <TopAudioBar
+                      audioData={micAudioData}
+                      isBackendConnected={socketConnected}
+                      isOrionRunning={isConnected}
+                      isCameraActive={!!selectedWebcamId}
+                      isPrinterConnected={printerCount > 0}
+                    />
                 </div>
 
                 <div className="flex items-center gap-2 pr-2" style={{ WebkitAppRegion: 'no-drag' }}>
