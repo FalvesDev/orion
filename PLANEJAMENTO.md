@@ -20,40 +20,32 @@ O ORION (Omniscient Reasoning and Intelligent Operations Node) é um assistente 
 - Gerenciamento de projetos com histórico de conversas
 
 ### Bugs e Problemas Identificados
-1. **`save_memory` não grava dados** — loop incompleto sem `f.write()`
-2. **Modelo CAD com nome inválido** — `gemini-3-pro-preview` não existe
+1. **`save_memory` não gravava dados** — loop sem `f.write()` ✅ *Corrigido*
+2. **Modelo CAD com nome inválido** — `gemini-3-pro-preview` ✅ *Corrigido → `gemini-2.5-flash`*
 3. **`contextIsolation: false`** no Electron — risco de segurança grave
-4. **Caminho Python hardcoded** — caminho fixo no `electron/main.js` impede distribuição ✅ *Corrigido — detecção dinâmica via USERPROFILE*
+4. **Caminho Python hardcoded** — caminho fixo no `electron/main.js` ✅ *Corrigido — detecção dinâmica*
 5. **`audio_loop` singleton global** — quebra em reconexão/multi-cliente
-6. **Lógica de permissões confusa** — bloco duplicado de "tool denied"
+6. **Lógica de permissões duplicada** — bloco "tool denied" duplicado em server.py
 7. **Serialização Kasa duplicada** — mesmo código em 3 arquivos
-8. **App.jsx monolítico** — ~900 linhas sem separação de responsabilidades
+8. **App.jsx monolítico** — ~1700 linhas sem separação de responsabilidades
 9. **VAD simplista** — threshold RMS fixo, frágil a ruído ambiente
-10. **`get_screen()` não implementado** — método retorna `pass`
+10. **`get_screen()` não implementado** ✅ *Corrigido — captura via mss com JPEG base64*
 
 ---
 
 ## Fase 1 — Estabilidade e Fundação (Prioridade Crítica)
 
-### 1.1 — Corrigir Bug: `save_memory` Não Grava Dados
-**Arquivos:** `backend/server.py` (linhas 520–527)
-**Complexidade:** Baixa | **Valor:** Alto
+### 1.1 — ✅ Corrigido: `save_memory` Não Gravava Dados
+**Arquivos:** `backend/server.py`
 
-O handler `save_memory` itera sobre mensagens mas nunca as grava. Qualquer sessão "salva" resulta em arquivo vazio.
-
-```python
-with open(filename, 'w', encoding='utf-8') as f:
-    for msg in messages:
-        f.write(f"[{msg.get('time','')}] {msg.get('sender','')}: {msg.get('text','')}\n")
-```
+O handler `save_memory` iterava sobre mensagens mas nunca as gravava. Corrigido adicionando `f.write()` no loop.
 
 ---
 
-### 1.2 — Corrigir Nome do Modelo CAD
-**Arquivos:** `backend/cad_agent.py` (linha 16)
-**Complexidade:** Baixa | **Valor:** Alto
+### 1.2 — ✅ Corrigido: Nome do Modelo CAD
+**Arquivos:** `backend/cad_agent.py`
 
-`gemini-3-pro-preview` não existe. Substituir por `gemini-2.5-pro-preview` ou `gemini-2.5-flash`.
+`gemini-3-pro-preview` não existe. Substituído por `gemini-2.5-flash`.
 
 ---
 
@@ -73,48 +65,139 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
 ---
 
-### 1.4 — Remover Caminho Python Hardcoded
+### 1.4 — ✅ Corrigido: Caminho Python Hardcoded
 **Arquivos:** `electron/main.js`
-**Complexidade:** Baixa | **Valor:** Alto (necessário para distribuição)
 
-Detectar Python dinamicamente via PATH ou lista de candidatos conhecidos.
-
-```js
-const pythonCandidates = [
-    path.join(process.env.USERPROFILE || '', 'miniconda3', 'envs', 'ada_v2', 'python.exe'),
-    'python', 'python3',
-];
-```
+Detecta Python dinamicamente via PATH e lista de candidatos conhecidos.
 
 ---
 
 ### 1.5 — Instalador Automático (Setup Wizard)
-**Arquivos:** Novo `install.bat`, `install.sh`, `electron/setup-wizard.js`
+**Arquivos:** Novo `install.sh`, `electron/setup-wizard.js`
 **Complexidade:** Média | **Valor:** Alto
 
-Script de instalação que: verifica Python/Node, cria ambiente conda, instala dependências, configura `.env` via UI, e cria atalho. Ver seção **Instalação Facilitada** abaixo.
+Script de instalação que: verifica Python/Node, cria venv, instala dependências, configura `.env` via UI, instala Playwright browsers e cria atalho. Ver seção **Instalação Facilitada** abaixo.
 
 ---
 
-### 1.6 — Timeout no Kasa ao Iniciar
+### 1.6 — `audio_loop` Singleton Global
 **Arquivos:** `backend/server.py`
-**Complexidade:** Baixa | **Valor:** Alto
+**Complexidade:** Média | **Valor:** Alto
 
-Já corrigido com `asyncio.wait_for(kasa_agent.initialize(), timeout=8.0)`. Garantir que dispositivos ausentes não travam o boot.
-
----
-
-## Fase 2 — Experiência do Usuário
-
-### 2.1 — Persistência de Layout Modular
-**Arquivos:** `src/App.jsx`
-**Complexidade:** Baixa | **Valor:** Alto
-
-Salvar posições e tamanhos dos painéis no `localStorage`. Restaurar no mount.
+O `audio_loop` global quebra em reconexão e multi-cliente. Refatorar para gerenciar instâncias por sessão com cleanup adequado.
 
 ---
 
-### 2.2 — Toast Notifications
+## Fase 2 — Controle do PC e Acesso a Arquivos (PRIORIDADE MÁXIMA)
+
+### 2.1 — Acesso e Abertura de Arquivos
+**Arquivos:** `backend/tools.py`, `backend/ada.py`
+**Complexidade:** Baixa | **Valor:** 🔴 Crítico
+
+ORION deve poder acessar o sistema de arquivos do usuário: listar diretórios, ler conteúdo de arquivos texto e abrir arquivos com o app padrão do sistema operacional.
+
+**Tools a implementar:**
+- `list_directory(path)` — lista arquivos e pastas
+- `read_file(path)` — lê conteúdo de arquivo texto/código
+- `open_file(path)` — abre com o app padrão do SO
+
+```python
+import subprocess
+import platform
+import os
+
+def open_file(path: str):
+    system = platform.system()
+    if system == "Linux":
+        subprocess.Popen(["xdg-open", path])
+    elif system == "Darwin":
+        subprocess.Popen(["open", path])
+    elif system == "Windows":
+        os.startfile(path)
+```
+
+**Exemplos de uso:**
+- "ORION, abre o PDF da fatura"
+- "Lista os arquivos da pasta Downloads"
+- "Lê o conteúdo do meu arquivo de configuração"
+- "Abre a imagem que acabei de baixar"
+
+---
+
+### 2.2 — Controle do PC por Voz
+**Arquivos:** `backend/tools.py`, `backend/ada.py`, `requirements.txt`
+**Complexidade:** Média | **Valor:** 🔴 Crítico
+**Dependências:** `pyautogui`, `psutil` (adicionar ao requirements.txt)
+
+ORION deve poder controlar o sistema operacional por voz: abrir aplicativos, gerenciar arquivos, controlar volume, capturar tela e gerenciar processos.
+
+**Tools a implementar:**
+
+```python
+# Abrir aplicativos
+def open_app(name: str):
+    subprocess.Popen(name)  # Linux/Mac
+    # ou subprocess.Popen(["start", name], shell=True)  # Windows
+
+# Mover/copiar/deletar arquivos
+def move_file(src, dst): shutil.move(src, dst)
+def copy_file(src, dst): shutil.copy2(src, dst)
+def delete_file(path): os.remove(path)
+
+# Volume do sistema
+def set_volume(percent: int):
+    # Linux: amixer sset Master percent%
+    # Mac: osascript -e "set volume output volume percent"
+    # Windows: pyautogui / pycaw
+
+# Listar/matar processos
+def list_processes(): return [(p.pid, p.name()) for p in psutil.process_iter()]
+def kill_process(pid: int): psutil.Process(pid).terminate()
+
+# Screenshot sob demanda (tool, não loop)
+def take_screenshot() -> dict:  # retorna base64 JPEG para o Gemini ver
+    ...
+```
+
+**Exemplos de uso:**
+- "ORION, abre o VS Code"
+- "Move o arquivo X para a pasta Y"
+- "Diminui o volume para 30%"
+- "Quais processos estão consumindo mais CPU?"
+- "Fecha o processo ID 1234"
+- "Tira um print da minha tela agora"
+
+---
+
+### 2.3 — ✅ Corrigido: Screen Awareness (Modo Tela)
+**Arquivos:** `backend/ada.py`
+
+`get_screen()` implementado com `mss` — captura o monitor principal, redimensiona para 1024px e envia como JPEG base64 para o Gemini a cada 1 segundo no modo `screen`.
+
+---
+
+### 2.4 — Abrir Chrome / URLs na Tela do Usuário
+**Arquivos:** `backend/tools.py`, `backend/ada.py`
+**Complexidade:** Baixa | **Valor:** Alto
+
+Tool `open_browser(url)` que abre o browser padrão com a URL — com todos os logins e favoritos pessoais. Diferente do web_agent (Playwright para automação).
+
+```python
+import webbrowser
+def open_browser(url: str):
+    webbrowser.open(url)
+```
+
+**Exemplos de uso:**
+- "ORION, abre o Google pra mim"
+- "Vai no meu Gmail"
+- "Pesquisa isso no YouTube"
+
+---
+
+## Fase 3 — Experiência do Usuário
+
+### 3.1 — Toast Notifications
 **Arquivos:** Novo `src/components/Toast.jsx`, `src/App.jsx`
 **Complexidade:** Baixa | **Valor:** Alto
 
@@ -122,15 +205,15 @@ Sistema de notificações no canto da tela (sucesso/erro/info) com fade automát
 
 ---
 
-### 2.3 — Markdown no Chat
+### 3.2 — Markdown no Chat
 **Arquivos:** `src/components/ChatModule.jsx`, `package.json`
 **Complexidade:** Baixa | **Valor:** Alto
 
-Adicionar `react-markdown`. A IA já retorna Markdown que aparece como texto raw. Incluir scroll para histórico completo (remover `.slice(-5)`).
+Adicionar `react-markdown`. A IA já retorna Markdown que aparece como texto raw. Remover `.slice(-5)` para histórico completo.
 
 ---
 
-### 2.4 — Barra de Status com Indicadores de Saúde
+### 3.3 — Barra de Status com Indicadores de Saúde
 **Arquivos:** `src/components/TopAudioBar.jsx`
 **Complexidade:** Baixa | **Valor:** Alto
 
@@ -138,25 +221,15 @@ Indicadores semafóricos (verde/amarelo/vermelho) para: backend, modelo ativo, c
 
 ---
 
-### 2.5 — Controle de Volume na Interface
-**Arquivos:** `src/App.jsx`, `backend/ada.py`
-**Complexidade:** Alta | **Valor:** Alto
+### 3.4 — Persistência de Layout Modular
+**Arquivos:** `src/App.jsx`
+**Complexidade:** Baixa | **Valor:** Alto
 
-Mover playback de áudio para Web Audio API no frontend. Permite controle de volume e seleção de dispositivo de saída sem depender do Python.
-
----
-
-### 2.6 — Refatorar App.jsx com Context API
-**Arquivos:** `src/App.jsx`, novos `src/contexts/`, `src/hooks/`
-**Complexidade:** Alta | **Valor:** Médio (base para todo o resto)
-
-Separar em `AudioContext`, `ProjectContext`, `DeviceContext` e hooks `useSocket`, `useHandTracking`, `useMediaDevices`.
+Salvar posições e tamanhos dos painéis no `localStorage`. Restaurar no mount.
 
 ---
 
-## Fase 3 — Funcionalidades Novas
-
-### 3.1 — Push to Talk com Atalho Global
+### 3.5 — Push to Talk com Atalho Global
 **Arquivos:** `electron/main.js`, `src/App.jsx`
 **Complexidade:** Baixa | **Valor:** Alto
 
@@ -164,23 +237,25 @@ Tecla configurável (padrão: `Space`) via `globalShortcut` do Electron. Funcion
 
 ---
 
-### 3.2 — Painel de Projetos com Tree-View
-**Arquivos:** Novo `src/components/ProjectsWindow.jsx`, `backend/server.py`, `backend/project_manager.py`
+## Fase 4 — Funcionalidades Novas
+
+### 4.1 — Painel de Projetos com Tree-View
+**Arquivos:** Novo `src/components/ProjectsWindow.jsx`, `backend/project_manager.py`
 **Complexidade:** Média | **Valor:** Alto
 
 Navegar projetos anteriores, abrir arquivos gerados (STL preview), restaurar histórico de chat.
 
 ---
 
-### 3.3 — Execução de Código Python pelo ORION
+### 4.2 — Execução de Código Python pelo ORION
 **Arquivos:** `backend/tools.py`, `backend/ada.py`
 **Complexidade:** Média | **Valor:** Alto
 
-Tool `execute_python` com sandbox (subprocesso isolado, timeout 30s, sem acesso à rede). Transforma ORION em assistente de programação real.
+Tool `execute_python` com sandbox (subprocesso isolado, timeout 30s). Transforma ORION em assistente de programação real.
 
 ---
 
-### 3.4 — Notificações Proativas e Alarmes
+### 4.3 — Notificações Proativas e Alarmes
 **Arquivos:** Novo `backend/scheduler.py`, `src/App.jsx`
 **Complexidade:** Média | **Valor:** Alto
 
@@ -188,55 +263,25 @@ Scheduler assíncrono que monitora condições e notifica: impressão terminada,
 
 ---
 
-### 3.5 — Drag & Drop de Arquivos
-**Arquivos:** `electron/main.js`, `src/App.jsx`, `backend/server.py`, `backend/ada.py`
+### 4.4 — Export CAD para Múltiplos Formatos
+**Arquivos:** `src/components/CadWindow.jsx`, `backend/cad_agent.py`
+**Complexidade:** Baixa | **Valor:** Alto
+
+Exportar para STEP, DXF, GLTF além de STL. STEP é essencial para uso profissional.
+
+---
+
+### 4.5 — Drag & Drop de Arquivos
+**Arquivos:** `electron/main.js`, `src/App.jsx`, `backend/server.py`
 **Complexidade:** Média | **Valor:** Alto
 
 Arrastar arquivos (STL, imagens, código, PDF) para o ORION analisar ou usar como contexto.
 
 ---
 
-### 3.6 — Abrir Chrome / URLs na Tela do Usuário
-**Arquivos:** `backend/tools.py`, `backend/ada.py`
-**Complexidade:** Baixa | **Valor:** Alto
+## Fase 5 — Inteligência e Memória
 
-Adicionar tool `open_browser(url)` que abre o Chrome ou browser padrão do usuário com a URL solicitada — com todos os logins e favoritos pessoais. Diferente do web_agent (que usa Playwright para automação), esta tool simplesmente abre o browser na tela via `webbrowser.open(url)` ou `subprocess.Popen(['start', 'chrome', url])`.
-
-**Exemplos de uso:**
-- "ORION, abre o Google pra mim"
-- "Abre o YouTube"
-- "Vai no meu Gmail"
-- "Pesquisa isso no Chrome"
-
----
-
-### 3.7 — Export CAD para Múltiplos Formatos
-**Arquivos:** `src/components/CadWindow.jsx`, `backend/cad_agent.py`
-**Complexidade:** Baixa | **Valor:** Alto
-
-Exportar para STEP, DXF, SVG, GLTF além de STL. STEP é essencial para uso profissional.
-
----
-
-## Fase 4 — Inteligência e Memória
-
-### 4.1 — Memória Vetorial Persistente
-**Arquivos:** Novo `backend/memory_manager.py`, `backend/ada.py`
-**Complexidade:** Alta | **Valor:** Alto
-
-`ChromaDB` ou `sqlite-vss` para busca semântica em conversas anteriores. ORION busca contexto relevante automaticamente antes de cada resposta.
-
----
-
-### 4.2 — Perfis de Personalidade Configuráveis
-**Arquivos:** `backend/ada.py`, novos `backend/profiles/*.json`, `src/components/SettingsWindow.jsx`
-**Complexidade:** Média | **Valor:** Alto
-
-System prompt externalizado em arquivos JSON. Usuário cria perfis customizados ou troca via Settings.
-
----
-
-### 4.3 — VAD Neural com Silero
+### 5.1 — VAD Neural com Silero
 **Arquivos:** `backend/ada.py`, `requirements.txt`
 **Complexidade:** Média | **Valor:** Alto
 
@@ -244,25 +289,42 @@ Substituir RMS threshold manual pelo `Silero VAD` (~2MB, < 5ms por chunk). Elimi
 
 ---
 
-### 4.4 — Screen Awareness (Modo Tela)
-**Arquivos:** `backend/ada.py`, `src/App.jsx`
-**Complexidade:** Média | **Valor:** Alto
+### 5.2 — Memória Vetorial Persistente
+**Arquivos:** Novo `backend/memory_manager.py`, `backend/ada.py`
+**Complexidade:** Alta | **Valor:** Alto
 
-Implementar `get_screen()` com `mss` (já importado). ORION vê o que o usuário está fazendo na tela.
+`ChromaDB` ou `sqlite-vss` para busca semântica em conversas anteriores. ORION busca contexto relevante automaticamente antes de cada resposta.
 
 ---
 
-### 4.5 — Modo Agente Autônomo
-**Arquivos:** Novo `backend/agent_loop.py`, `backend/ada.py`, `src/components/ToolsModule.jsx`
+### 5.3 — Perfis de Personalidade Configuráveis
+**Arquivos:** `backend/ada.py`, novos `backend/profiles/*.json`, `src/components/SettingsWindow.jsx`
+**Complexidade:** Média | **Valor:** Alto
+
+System prompt externalizado em arquivos JSON. Usuário cria perfis customizados ou troca via Settings.
+
+---
+
+### 5.4 — Modo Agente Autônomo
+**Arquivos:** Novo `backend/agent_loop.py`, `backend/ada.py`
 **Complexidade:** Alta | **Valor:** Alto
 
 Decompõe tarefas complexas em subtarefas e executa sequencialmente com progresso visível.
 
 ---
 
-## Fase 5 — Integrações Externas
+## Fase 6 — Integrações Externas
 
-### 5.1 — Home Assistant
+### 6.1 — Lâmpada Elgin (Tuya Protocol)
+**Arquivos:** Novo `backend/elgin_agent.py`, `backend/tools.py`
+**Complexidade:** Média | **Valor:** Alto
+**Dependência:** `pip install tinytuya`
+
+Controlar lâmpadas Elgin Smart (protocolo Tuya) por voz: ligar/desligar, mudar cor, ajustar brilho.
+
+---
+
+### 6.2 — Home Assistant
 **Arquivos:** Novo `backend/home_assistant_agent.py`
 **Complexidade:** Média | **Valor:** Alto
 
@@ -270,15 +332,7 @@ Controlar qualquer dispositivo via Home Assistant REST API. Termostatos, câmera
 
 ---
 
-### 5.2 — Google Calendar / Gmail
-**Arquivos:** Novo `backend/google_agent.py`
-**Complexidade:** Alta | **Valor:** Alto
-
-Consultar agenda, criar eventos, ler/responder emails por voz via OAuth2.
-
----
-
-### 5.3 — Spotify / Controle de Mídia
+### 6.3 — Spotify / Controle de Mídia
 **Arquivos:** Novo `backend/spotify_agent.py`
 **Complexidade:** Média | **Valor:** Alto
 
@@ -286,7 +340,15 @@ Consultar agenda, criar eventos, ler/responder emails por voz via OAuth2.
 
 ---
 
-### 5.4 — GitHub Integration
+### 6.4 — Google Calendar / Gmail
+**Arquivos:** Novo `backend/google_agent.py`
+**Complexidade:** Alta | **Valor:** Alto
+
+Consultar agenda, criar eventos, ler/responder emails por voz via OAuth2.
+
+---
+
+### 6.5 — GitHub Integration
 **Arquivos:** Novo `backend/github_agent.py`, `backend/tools.py`
 **Complexidade:** Alta | **Valor:** Alto
 
@@ -294,90 +356,60 @@ Criar issues, commits, PRs, ler código. Combinado com execução Python: agente
 
 ---
 
-### 5.5 — Lâmpada Elgin (Tuya Protocol)
-**Arquivos:** Novo `backend/elgin_agent.py` ou integração via `tinytuya`, `backend/tools.py`, `backend/ada.py`
-**Complexidade:** Média | **Valor:** Alto
-
-Integrar lâmpadas Elgin Smart (protocolo Tuya, mesmo chip usado pela maioria das smart bulbs brasileiras) ao ORION. Permitir controle por voz: ligar/desligar, mudar cor, ajustar brilho.
-
-**Exemplos de uso:**
-- "ORION, apaga a luz do quarto"
-- "Coloca a luz azul"
-- "Diminui o brilho para 30%"
-
-**Dependência:** `tinytuya` — `pip install tinytuya`
-**Configuração necessária:** Device ID, Local Key e IP da lâmpada (obtidos via Tuya IoT Platform ou scan de rede)
-
----
-
-### 5.6 — Câmeras IP / RTSP
-**Arquivos:** `backend/ada.py`, `src/components/SettingsWindow.jsx`
-**Complexidade:** Média | **Valor:** Médio
-
-Streams RTSP de câmeras de segurança via `cv2.VideoCapture('rtsp://...')`.
-
----
-
 ## Instalação Facilitada (Feature Prioritária)
 
-Criar um instalador completo que funcione em qualquer PC Windows com um duplo clique:
+### `install.sh` / `install.bat` — Instalador Automático
 
-### `install.bat` — Instalador Automático
 ```
-1. Verifica se Python 3.11+ está instalado (baixa se necessário via winget)
-2. Verifica se Node.js 18+ está instalado (baixa se necessário)
-3. Cria ambiente virtual Python (sem precisar de conda)
+1. Verifica Python 3.11+ instalado
+2. Verifica Node.js 18+ instalado
+3. Cria venv Python (.venv)
 4. Instala requirements.txt
 5. Instala dependências npm
 6. Instala Playwright Chromium
-7. Abre tela para o usuário colar a API key do Gemini
-8. Salva .env automaticamente
-9. Cria atalho na área de trabalho
-10. Exibe "ORION instalado com sucesso!"
+7. Solicita API key do Gemini e salva no .env
+8. Exibe "ORION instalado com sucesso!"
 ```
 
-### Opção B — Electron Forge / Electron Builder
-Empacotar tudo (Python via PyInstaller + Electron) em um `.exe` instalável. Usuário final não precisa instalar nada — só rodar o `.exe`.
-
-**Arquivos:** `package.json` (electron-builder config), novo `build/installer.nsh`, `pyinstaller.spec`
+### Opção B — Electron Builder
+Empacotar tudo em instalador `.exe`/`.AppImage`. Usuário final não instala nada manualmente.
 
 ---
 
-## Backlog Completo
+## Backlog Priorizado
 
 | # | Feature | Fase | Complexidade | Valor |
 |---|---------|------|-------------|-------|
-| 1 | Bug: save_memory não grava | 1 | Baixa | 🔴 Crítico |
-| 2 | Bug: modelo CAD inválido | 1 | Baixa | 🔴 Crítico |
-| 3 | Python path hardcoded | 1 | Baixa | 🔴 Crítico |
-| 4 | contextIsolation Electron | 1 | Média | 🔴 Crítico |
-| 5 | Instalador automático | 1 | Média | 🔴 Crítico |
-| 6 | Push to Talk global | 3 | Baixa | 🟠 Alto |
-| 7 | Persistência de layout | 2 | Baixa | 🟠 Alto |
-| 8 | Toast notifications | 2 | Baixa | 🟠 Alto |
-| 9 | Markdown no chat | 2 | Baixa | 🟠 Alto |
-| 10 | Status bar com indicadores | 2 | Baixa | 🟠 Alto |
-| 11 | Abrir Chrome/URLs na tela | 3 | Baixa | 🔴 Crítico |
-| 12 | Export CAD STEP/GLTF | 3 | Baixa | 🟠 Alto |
-| 12 | Screen awareness | 4 | Média | 🟠 Alto |
-| 13 | VAD neural (Silero) | 4 | Média | 🟠 Alto |
-| 14 | Painel de projetos | 3 | Média | 🟠 Alto |
-| 15 | Execução de código Python | 3 | Média | 🟠 Alto |
-| 16 | Notificações proativas | 3 | Média | 🟠 Alto |
-| 17 | Drag & drop de arquivos | 3 | Média | 🟠 Alto |
-| 18 | Perfis de personalidade | 4 | Média | 🟠 Alto |
-| 19 | Spotify / mídia | 5 | Média | 🟡 Médio |
-| 20 | Home Assistant | 5 | Média | 🟡 Médio |
-| 21 | Refatorar App.jsx | 2 | Alta | 🟡 Médio |
-| 22 | Controle de volume frontend | 2 | Alta | 🟡 Médio |
-| 23 | Memória vetorial ChromaDB | 4 | Alta | 🟡 Médio |
-| 24 | Modo agente autônomo | 4 | Alta | 🟡 Médio |
-| 25 | Google Calendar / Gmail | 5 | Alta | 🟡 Médio |
-| 26 | GitHub integration | 5 | Alta | 🟡 Médio |
-| 27 | Multi-janela / multi-monitor | 3 | Alta | 🟡 Médio |
-| 28 | Câmeras IP / RTSP | 5 | Média | 🟢 Baixo |
-| 29 | Suporte Ollama (LLM local) | 4 | Alta | 🟢 Baixo |
-| 30 | App mobile companion | 5 | Alta | 🟢 Baixo |
+| 1 | ✅ Bug: save_memory corrigido | 1 | Baixa | 🔴 Crítico |
+| 2 | ✅ Bug: modelo CAD inválido corrigido | 1 | Baixa | 🔴 Crítico |
+| 3 | ✅ Python path hardcoded corrigido | 1 | Baixa | 🔴 Crítico |
+| 4 | ✅ get_screen() implementado | 2 | Baixa | 🔴 Crítico |
+| 5 | Acesso e abertura de arquivos | 2 | Baixa | 🔴 Crítico |
+| 6 | Controle do PC por voz | 2 | Média | 🔴 Crítico |
+| 7 | Abrir browser/URLs na tela | 2 | Baixa | 🔴 Crítico |
+| 8 | contextIsolation Electron | 1 | Média | 🔴 Crítico |
+| 9 | audio_loop singleton global | 1 | Média | 🔴 Crítico |
+| 10 | Instalador automático | 1 | Média | 🔴 Crítico |
+| 11 | Toast notifications | 3 | Baixa | 🟠 Alto |
+| 12 | Markdown no chat + histórico completo | 3 | Baixa | 🟠 Alto |
+| 13 | Barra de status com indicadores | 3 | Baixa | 🟠 Alto |
+| 14 | Persistência de layout | 3 | Baixa | 🟠 Alto |
+| 15 | Push to Talk global | 3 | Baixa | 🟠 Alto |
+| 16 | Painel de projetos tree-view | 4 | Média | 🟠 Alto |
+| 17 | Execução de código Python | 4 | Média | 🟠 Alto |
+| 18 | Notificações proativas | 4 | Média | 🟠 Alto |
+| 19 | Export CAD STEP/GLTF | 4 | Baixa | 🟠 Alto |
+| 20 | Drag & drop de arquivos | 4 | Média | 🟠 Alto |
+| 21 | VAD neural (Silero) | 5 | Média | 🟠 Alto |
+| 22 | Lâmpada Elgin (Tuya) | 6 | Média | 🟠 Alto |
+| 23 | Home Assistant | 6 | Média | 🟡 Médio |
+| 24 | Spotify / mídia | 6 | Média | 🟡 Médio |
+| 25 | Perfis de personalidade | 5 | Média | 🟡 Médio |
+| 26 | Memória vetorial ChromaDB | 5 | Alta | 🟡 Médio |
+| 27 | Modo agente autônomo | 5 | Alta | 🟡 Médio |
+| 28 | Refatorar App.jsx (Context API) | 3 | Alta | 🟡 Médio |
+| 29 | Google Calendar / Gmail | 6 | Alta | 🟡 Médio |
+| 30 | GitHub integration | 6 | Alta | 🟡 Médio |
 
 ---
 
@@ -385,12 +417,13 @@ Empacotar tudo (Python via PyInstaller + Electron) em um `.exe` instalável. Usu
 
 | Sprint | Duração | Foco |
 |--------|---------|------|
-| Sprint 1 | 1–2 dias | Bugs críticos (1.1, 1.2, 1.6) |
-| Sprint 2 | 3–5 dias | Segurança e distribuição (1.3, 1.4, 1.5) |
-| Sprint 3 | 1 semana | UX de alto impacto (2.1–2.4, 3.6) |
-| Sprint 4 | 2 semanas | Features novas (3.1–3.5, 4.4) |
-| Sprint 5 | 2 semanas | Inteligência e memória (4.1–4.3) |
-| Sprint 6+ | Contínuo | Integrações externas (Fase 5) |
+| Sprint 1 | ✅ Concluído | Bugs críticos (save_memory, modelo CAD, get_screen) |
+| Sprint 2 | 3–5 dias | Controle do PC + acesso a arquivos + open_browser |
+| Sprint 3 | 3–5 dias | Segurança Electron + audio_loop + instalador |
+| Sprint 4 | 1 semana | UX de alto impacto (toast, markdown, status bar, layout) |
+| Sprint 5 | 2 semanas | Features novas (projetos, execução Python, drag&drop) |
+| Sprint 6 | 2 semanas | Inteligência e memória (VAD, ChromaDB, perfis) |
+| Sprint 7+ | Contínuo | Integrações externas (Fase 6) |
 
 ---
 
