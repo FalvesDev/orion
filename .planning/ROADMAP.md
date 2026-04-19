@@ -54,10 +54,11 @@ Plans:
   2. Status indicators update live when a subsystem connects or disconnects (no page refresh required)
   3. After repositioning and resizing panels, a full app restart restores the exact same layout
   4. Pressing Space (or the configured shortcut) activates push-to-talk even when ORION is not the focused window
-**Plans**: 2 plans
+**Plans**: 3 plans
 Plans:
-- [ ] 03-01-PLAN.md — Status bar indicators and live updates
-- [ ] 03-02-PLAN.md — Layout persistence and push-to-talk shortcut
+- [ ] 03-01-PLAN.md — Status indicators: TopAudioBar semaphore dots + App.jsx wiring (UX-01, UX-02)
+- [ ] 03-02-PLAN.md — Layout persistence: localStorage-backed positions and sizes (UX-03)
+- [ ] 03-03-PLAN.md — Push-to-talk: global Space shortcut via Electron globalShortcut (UX-04)
 **UI hint**: yes
 
 ## Progress
@@ -68,4 +69,4 @@ Plans:
 |-------|----------------|--------|-----------|
 | 1. PC Control | 2/2 | Complete | 2026-04-18 |
 | 2. Security | 0/2 | Ready | - |
-| 3. UX Polish | 0/2 | Not started | - |
+| 3. UX Polish | 0/3 | Not started | - |
