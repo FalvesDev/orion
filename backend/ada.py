@@ -214,7 +214,12 @@ config = types.LiveConnectConfig(
         "You may express mild concern if something seems risky, like a trusted advisor would. "
 
         "You do not remind the user that you are an AI unless directly asked. You simply exist and operate. "
-        "You are ORION. You are always online, always ready, always one step ahead."
+        "You are ORION. You are always online, always ready, always one step ahead. "
+
+        f"System context: User home directory is '{os.path.expanduser('~')}'. "
+        "When accessing files, always use full paths starting with ~ or the absolute path. "
+        "Common directories: ~/Downloads, ~/Documents, ~/Desktop, ~/Pictures. "
+        "When creating projects, inform the user of the exact directory where files will be saved."
     ),
     tools=tools,
     speech_config=types.SpeechConfig(
@@ -611,37 +616,55 @@ class AudioLoop:
     async def handle_read_directory(self, path):
         print(f"[ADA DEBUG] [FS] Reading directory: '{path}'")
         try:
-            if not os.path.exists(path):
-                result = f"Directory '{path}' does not exist."
+            resolved = await asyncio.to_thread(self._resolve_path, path)
+            if not resolved or not os.path.isdir(resolved):
+                home = os.path.expanduser("~")
+                result = (
+                    f"Directory '{path}' not found. "
+                    f"Use full paths like ~/Downloads or /home/user/Documents. "
+                    f"Home directory: {home}"
+                )
             else:
-                items = os.listdir(path)
-                result = f"Contents of '{path}': {', '.join(items)}"
+                items = os.listdir(resolved)
+                # Show full paths so ORION can reference them later
+                entries = []
+                for item in sorted(items):
+                    full = os.path.join(resolved, item)
+                    tag = "[DIR] " if os.path.isdir(full) else "[FILE]"
+                    entries.append(f"  {tag} {full}")
+                result = f"Contents of '{resolved}' ({len(items)} items):\n" + "\n".join(entries)
         except Exception as e:
             result = f"Failed to read directory '{path}': {str(e)}"
 
         print(f"[ADA DEBUG] [FS] Result: {result}")
         try:
-             await self.session.send(input=f"System Notification: {result}", end_of_turn=True)
+            await self.session.send(input=f"System Notification: {result}", end_of_turn=True)
         except Exception as e:
-             print(f"[ADA DEBUG] [ERR] Failed to send fs result: {e}")
+            print(f"[ADA DEBUG] [ERR] Failed to send fs result: {e}")
 
     async def handle_read_file(self, path):
         print(f"[ADA DEBUG] [FS] Reading file: '{path}'")
         try:
-            if not os.path.exists(path):
-                result = f"File '{path}' does not exist."
+            resolved = await asyncio.to_thread(self._resolve_path, path)
+            if not resolved:
+                home = os.path.expanduser("~")
+                result = (
+                    f"File '{path}' not found. "
+                    f"Use full paths like ~/Documents/file.txt. "
+                    f"Home directory: {home}"
+                )
             else:
-                with open(path, 'r', encoding='utf-8') as f:
-                    content = f.read()
-                result = f"Content of '{path}':\n{content}"
+                with open(resolved, 'r', encoding='utf-8', errors='replace') as f:
+                    content = f.read(50000)  # cap at 50KB
+                result = f"Content of '{resolved}':\n{content}"
         except Exception as e:
             result = f"Failed to read file '{path}': {str(e)}"
 
         print(f"[ADA DEBUG] [FS] Result: {result}")
         try:
-             await self.session.send(input=f"System Notification: {result}", end_of_turn=True)
+            await self.session.send(input=f"System Notification: {result}", end_of_turn=True)
         except Exception as e:
-             print(f"[ADA DEBUG] [ERR] Failed to send fs result: {e}")
+            print(f"[ADA DEBUG] [ERR] Failed to send fs result: {e}")
 
     async def handle_web_agent_request(self, prompt):
         print(f"[ADA DEBUG] [WEB] Web Agent Task: '{prompt}'")
@@ -847,9 +870,9 @@ class AudioLoop:
                                     print(f"[ADA DEBUG] [TOOL] Tool Call: 'create_project' name='{name}'")
                                     success, msg = self.project_manager.create_project(name)
                                     if success:
-                                        # Auto-switch to the newly created project
                                         self.project_manager.switch_project(name)
-                                        msg += f" Switched to '{name}'."
+                                        project_path = self.project_manager.get_current_project_path()
+                                        msg += f" Switched to '{name}'. Files will be saved to: {project_path}"
                                         if self.on_project_update:
                                             self.on_project_update(name)
                                     function_response = types.FunctionResponse(
@@ -1287,18 +1310,49 @@ class AudioLoop:
 
     # --- PC Control helpers (run in thread via asyncio.to_thread) ---
 
+    def _resolve_path(self, path: str) -> str | None:
+        """Expand ~ and env vars, then search common dirs if not found."""
+        expanded = os.path.expandvars(os.path.expanduser(path))
+        if os.path.exists(expanded):
+            return expanded
+
+        # If only a filename was given, search common user directories
+        if not os.path.isabs(expanded):
+            home = os.path.expanduser("~")
+            search_dirs = [
+                home,
+                os.path.join(home, "Downloads"),
+                os.path.join(home, "Documents"),
+                os.path.join(home, "Desktop"),
+                os.path.join(home, "Pictures"),
+                os.path.join(home, "Videos"),
+                os.path.join(home, "Music"),
+            ]
+            basename = os.path.basename(expanded)
+            for d in search_dirs:
+                candidate = os.path.join(d, basename)
+                if os.path.exists(candidate):
+                    return candidate
+        return None
+
     def _open_file(self, path: str) -> str:
         try:
-            if not os.path.exists(path):
-                return f"File not found: '{path}'"
+            resolved = self._resolve_path(path)
+            if not resolved:
+                home = os.path.expanduser("~")
+                return (
+                    f"File not found: '{path}'. "
+                    f"Try using the full path (e.g. ~/Downloads/file.pdf). "
+                    f"Home directory is: {home}"
+                )
             system = platform.system()
             if system == "Linux":
-                subprocess.Popen(["xdg-open", path])
+                subprocess.Popen(["xdg-open", resolved])
             elif system == "Darwin":
-                subprocess.Popen(["open", path])
+                subprocess.Popen(["open", resolved])
             elif system == "Windows":
-                os.startfile(path)
-            return f"Opened '{os.path.basename(path)}' with default application."
+                os.startfile(resolved)
+            return f"Opened '{os.path.basename(resolved)}' with default application."
         except Exception as e:
             return f"Failed to open file: {e}"
 
